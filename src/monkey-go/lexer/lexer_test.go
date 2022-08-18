@@ -132,11 +132,11 @@ func TestNextToken(t *testing.T) {
 		t.Logf("tests[%d] = token type=%q, literal=%q", i, tok.Type, tok.Literal)
 
 		if tok.Type != tt.expectedType {
-			t.Fatalf("tests[%d] = token type wrong , expected=%q, got=%q", i, tt.expectedType, tok.Type)
+			t.Fatalf("tests[%d] = token type wrong, expected=%q, got=%q", i, tt.expectedType, tok.Type)
 		}
 
 		if tok.Literal != tt.expectedLiteral {
-			t.Fatalf("tests[%d] - literal wrong, expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+			t.Fatalf("tests[%d] - token literal wrong, expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
 		}
 	}
 }
