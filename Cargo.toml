@@ -14,3 +14,4 @@ name = "monkey"
 path = "src/monkey-rs/main.rs"
 
 [dependencies]
+whoami = "1.2.1"
