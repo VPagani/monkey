@@ -1,7 +1,7 @@
 use crate::token::{Token, TokenType};
 
-pub struct Lexer {
-	pub input: String,
+pub struct Lexer<'a> {
+	pub input: &'a str,
 	pub position: usize,
 	pub read_position: usize,
 	pub current_char: char,
@@ -25,8 +25,8 @@ fn is_whitespace(char: char) -> bool {
 	}
 }
 
-impl Lexer {
-	pub fn new<'a>(input: String) -> Lexer {
+impl<'a> Lexer<'a> {
+	pub fn new(input: &'a str) -> Lexer<'a> {
 		let mut lexer = Lexer { input, position: 0, read_position: 0, current_char: '\0' };
 		lexer.read_char();
 		return lexer;
@@ -271,7 +271,7 @@ mod tests {
 			(EOF, ""),
 		];
 
-		let mut lexer = Lexer::new(input.to_string());
+		let mut lexer = Lexer::new(input);
 
 		for (i, expected_token) in tests.iter().enumerate() {
 			let token = lexer.next_token();

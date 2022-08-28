@@ -15,7 +15,7 @@ impl Repl {
 			let mut input = String::new();
 			stdin.read_line(&mut input)?;
 
-			let mut lexer = Lexer::new(input);
+			let mut lexer = Lexer::new(input.as_str());
 
 			let mut tok = lexer.next_token();
 			while tok.ttype != TokenType::EOF {
