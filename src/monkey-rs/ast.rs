@@ -1,3 +1,5 @@
+use crate::token::Token;
+
 pub struct Program {
 	pub statements: Vec<Statement>,
 }
@@ -6,6 +8,7 @@ trait Node {
 	fn literal(self) -> String;
 }
 
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
 	Identifier(String),
@@ -13,7 +16,8 @@ pub enum Expression {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Statement {
-	Let{ name: String },
+	Let{ token: Token, name: String },
+	Return{ token: Token },
 }
 
 impl Program {
@@ -39,7 +43,8 @@ impl Node for Statement {
 		use Statement::*;
 
 		match self {
-			Let { name } => name,
+			Let { token, .. } => token.literal,
+			Return { token, .. }  => token.literal,
 		}
 	}
 }
