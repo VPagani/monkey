@@ -101,7 +101,7 @@ impl<'a> Parser<'a> {
 		// TODO: We're skipping the expressions until we encounter a semicolon
 		self.skip_until_semicolons();
 
-		return Some(Statement::Let{ token,  name });
+		return Some(Statement::Let{ token, name, value: None });
 	}
 
 	fn parse_return_statement(&mut self) -> Option<Statement> {
@@ -112,7 +112,7 @@ impl<'a> Parser<'a> {
 		// TODO: We're skipping the expressions until we encounter a semicolon
 		self.skip_until_semicolons();
 
-		return Some(Statement::Return { token });
+		return Some(Statement::Return { token, value: None });
 	}
 }
 

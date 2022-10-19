@@ -16,8 +16,8 @@ pub enum Expression {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Statement {
-	Let{ token: Token, name: String },
-	Return{ token: Token },
+	Let{ token: Token, name: String, value: Option<Expression> },
+	Return{ token: Token, value: Option<Expression> },
 }
 
 impl Program {
