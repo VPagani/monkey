@@ -111,13 +111,18 @@ type Identifier struct {
 	Value string
 }
 
-func (i *Identifier) expressionNode() {}
-func (i *Identifier) TokenLiteral() string {
-	return i.Token.Literal
+func (i *Identifier) expressionNode()      {}
+func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
+func (i *Identifier) String() string       { return i.Value }
+
+type BooleanLiteral struct {
+	Token token.Token
+	Value bool
 }
-func (i *Identifier) String() string {
-	return i.Value
-}
+
+func (b *BooleanLiteral) expressionNode()      {}
+func (b *BooleanLiteral) TokenLiteral() string { return b.Token.Literal }
+func (b *BooleanLiteral) String() string       { return b.Token.Literal }
 
 type IntegerLiteral struct {
 	Token token.Token
