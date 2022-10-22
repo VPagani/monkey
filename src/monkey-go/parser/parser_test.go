@@ -409,3 +409,74 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestIfExpression(t *testing.T) {
+	input := "if (x < y) { x }"
+
+	expression := testParseExpression(t, input)
+
+	ifExp, ok := expression.(*ast.IfExpression)
+	if !ok {
+		t.Fatalf("expression is not ast.IfExpression. got%T", expression)
+	}
+
+	if !testInfixExpression(t, ifExp.Condition, "x", "<", "y") {
+		return
+	}
+
+	stmtCount := len(ifExp.Consequence.Statements)
+	if stmtCount != 1 {
+		t.Errorf("consequence is not 1 statments. got=%d\n", stmtCount)
+	}
+
+	consequece, ok := ifExp.Consequence.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("Statements[0] is not ast.ExpressionStatement. got=%T", ifExp.Consequence.Statements[0])
+	}
+
+	if !testIdentifier(t, consequece.Expression, "x") {
+		return
+	}
+
+	if ifExp.Alternative != nil {
+		t.Errorf("ifExp.Alternative was not nil. got=%+v", ifExp.Alternative)
+	}
+}
+
+func TestIfElseExpression(t *testing.T) {
+	input := "if (x == y) { x } else { y }"
+
+	expression := testParseExpression(t, input)
+
+	ifExp, ok := expression.(*ast.IfExpression)
+	if !ok {
+		t.Fatalf("expression is not ast.IfExpression. got%T", expression)
+	}
+
+	if !testInfixExpression(t, ifExp.Condition, "x", "==", "y") {
+		return
+	}
+
+	stmtCount := len(ifExp.Consequence.Statements)
+	if stmtCount != 1 {
+		t.Errorf("consequence is not 1 statments. got=%d\n", stmtCount)
+	}
+
+	consequece, ok := ifExp.Consequence.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("Statements[0] is not ast.ExpressionStatement. got=%T", ifExp.Consequence.Statements[0])
+	}
+
+	if !testIdentifier(t, consequece.Expression, "x") {
+		return
+	}
+
+	alternative, ok := ifExp.Alternative.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("Statements[0] is not ast.ExpressionStatement. got=%T", ifExp.Alternative.Statements[0])
+	}
+
+	if !testIdentifier(t, alternative.Expression, "y") {
+		return
+	}
+}
