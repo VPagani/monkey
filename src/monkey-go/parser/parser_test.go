@@ -480,3 +480,59 @@ func TestIfElseExpression(t *testing.T) {
 		return
 	}
 }
+
+func TestFunctionLiteralParsing(t *testing.T) {
+	input := "fn(x, y) { x + y; }"
+
+	expression := testParseExpression(t, input)
+
+	function, ok := expression.(*ast.FunctionLiteral)
+	if !ok {
+		t.Fatalf("expression isnot ast.FunctionLiteral. got=%T", expression)
+	}
+
+	functionParams := len(function.Parameters)
+	if functionParams != 2 {
+		t.Fatalf("function literal parameters wrong. want 2, got=%d\n", functionParams)
+	}
+
+	testLiteralExpression(t, function.Parameters[0], "x")
+	testLiteralExpression(t, function.Parameters[1], "y")
+
+	functionStmts := len(function.Body.Statements)
+	if functionStmts != 1 {
+		t.Fatalf("function.Body.Statements has not 1 statements. got=%d\n", functionStmts)
+	}
+
+	bodyStmt, ok := function.Body.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("function body statement is not ast.ExpressionStatement. got=%T", bodyStmt)
+	}
+
+	testInfixExpression(t, bodyStmt.Expression, "x", "+", "y")
+}
+
+func TestFunctionParameterParsing(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedParams []string
+	}{
+		{input: "fn() {};", expectedParams: []string{}},
+		{input: "fn(x) {};", expectedParams: []string{"x"}},
+		{input: "fn(x, y, z) {};", expectedParams: []string{"x", "y", "z"}},
+	}
+
+	for _, tt := range tests {
+		expression := testParseExpression(t, tt.input)
+
+		function := expression.(*ast.FunctionLiteral)
+
+		if len(function.Parameters) != len(tt.expectedParams) {
+			t.Errorf("length parameters wrong. want %d, got=%d\n", len(tt.expectedParams), len(function.Parameters))
+		}
+
+		for i, ident := range tt.expectedParams {
+			testLiteralExpression(t, function.Parameters[i], ident)
+		}
+	}
+}
