@@ -69,18 +69,13 @@ impl<'a> Parser<'a> {
 		self.errors.push(msg);
 	}
 
-	fn skip_until_semicolons(&mut self) {
-		while !self.current_token_is(TokenType::Semicolon) {
-			self.next_token();
-		}
-	}
-
 	fn get_infix_precedence(&self, ttype: TokenType) -> Precedence {
 		match ttype {
 			TokenType::Equal | TokenType::NotEqual => Precedence::Equality,
 			TokenType::GreaterThan | TokenType::LowerThan => Precedence::Comparison,
 			TokenType::Plus | TokenType::Minus => Precedence::Term,
 			TokenType::Asterisk | TokenType::Slash => Precedence::Factor,
+			TokenType::LParen => Precedence::Call,
 			_ => Precedence::Lowest
 		}
 	}
@@ -127,14 +122,19 @@ impl<'a> Parser<'a> {
 			return None;
 		}
 
-		// TODO: We're skipping the expressions until we encounter a semicolon
-		self.skip_until_semicolons();
+		self.next_token();
+
+		let value = self.parse_expression(Precedence::Lowest);
+
+		if !self.expect_peek(TokenType::Semicolon) {
+			return None;
+		}
 
 		return Some(
 			ast::LetStatement {
 				token,
 				name,
-				value: None
+				value,
 			}
 		);
 	}
@@ -144,13 +144,16 @@ impl<'a> Parser<'a> {
 
 		self.next_token();
 
-		// TODO: We're skipping the expressions until we encounter a semicolon
-		self.skip_until_semicolons();
+		let value = self.parse_expression(Precedence::Lowest);
+
+		if !self.expect_peek(TokenType::Semicolon) {
+			return None;
+		}
 
 		return Some(
 			ast::ReturnStatement {
 				token,
-				value: None
+				value
 			}
 		);
 	}
@@ -343,8 +346,44 @@ impl<'a> Parser<'a> {
 				}))
 			}
 
+			TokenType::LParen => {
+				self.next_token();
+
+				let arguments = match self.parse_call_arguments() {
+					Some(arguments) => arguments,
+					None => return Err(left),
+				};
+
+				Ok(ast::Expression::Call(ast::CallExpression {
+					token: operator,
+					identifier: Box::new(left),
+					arguments,
+				}))
+			}
+
 			_ => Err(left),
 		}
+	}
+
+	fn parse_call_arguments(&mut self) -> Option<Vec<ast::Expression>> {
+		let mut args = vec![];
+
+		if !self.current_token_is(TokenType::RParen) {
+			args.push(self.parse_expression(Precedence::Lowest)?);
+
+			while self.peek_token_is(TokenType::Comma) {
+				self.next_token();
+				self.next_token();
+				
+				args.push(self.parse_expression(Precedence::Lowest)?);
+			}
+
+			if !self.expect_peek(TokenType::RParen) {
+				return None;
+			}
+		}
+
+		return Some(args);
 	}
 }
 
@@ -424,37 +463,47 @@ mod tests {
 
 	#[test]
 	fn test_let_statements() {
-		let input = "
-		let x = 5;
-		let y = 10;
-		let foobar = 838383;
-		";
-
-		let program = parse_statements(input, 3);
-
-		let tests: Vec<&str> = vec![
-			("x"),
-			("y"),
-			("foobar")
+		let tests = vec![
+			("let x = 5;", "x", LiteralValue::Integer(5)),
+			("let y = true;", "y", LiteralValue::Boolean(true)),
+			("let foobar = y;", "foobar", LiteralValue::Identifier("y")),
 		];
 
-		for (name, stmt) in tests.into_iter().zip(program.statements.into_iter()) {
-			check_let_statement(stmt, name);
+		for (input, expected_name, expected_value) in tests {
+			let mut program = parse_statements(input, 1);
+			let statement = program.statements.pop().unwrap();
+
+			check_let_statement(statement.clone(), expected_name);
+			
+			match statement {
+				Statement::Let(ast::LetStatement { value, .. }) => {
+					check_literal_expression(value.unwrap(), expected_value);
+				}
+
+				_ => panic!("statement is not LetStatement. got={:?}", statement),
+			}
 		}
 	}
 
 	#[test]
 	fn test_return_statements() {
-		let input = "
-		return 5;
-		return 10;
-		return 95345;
-		";
+		let tests = vec![
+			("return 5;", LiteralValue::Integer(5)),
+			("return true;", LiteralValue::Boolean(true)),
+			("return foobar;", LiteralValue::Identifier("foobar")),
+		];
 
-		let program = parse_statements(input, 3);
+		for (input, expected_value) in tests {
+			let mut program = parse_statements(input, 1);
+			let statement = program.statements.pop().unwrap();
 
-		for stmt in program.statements.into_iter() {
-			assert!(matches!(stmt, Statement::Return { .. }));
+			match statement {
+				Statement::Return(ast::ReturnStatement { value, .. }) => {
+					check_literal_expression(value.unwrap(), expected_value);
+				}
+
+				_ => panic!("statement is not ReturnStatement. got={:?}", statement),
+			}
 		}
 	}
 
@@ -568,10 +617,10 @@ mod tests {
 			("false;", false),
 		];
 
-		for test in tests {
-			let expression = parse_expression(test.0);
+		for (input, expected_value) in tests {
+			let expression = parse_expression(input);
 
-			check_boolean_literal(expression, test.1);
+			check_boolean_literal(expression, expected_value);
 		}
 	}
 
@@ -582,14 +631,14 @@ mod tests {
 			("-15;", "-", LiteralValue::Integer(15)),
 		];
 
-		for test in tests {
-			let expression = parse_expression(test.0);
+		for (input, operator_literal, right_value) in tests {
+			let expression = parse_expression(input);
 
 			match expression {
 				Expression::Prefix(ast::PrefixExpression { operator, right }) => {
-					assert_eq!(test.1, operator.literal);
+					assert_eq!(operator.literal, operator_literal);
 
-					check_literal_expression(*right, test.2);
+					check_literal_expression(*right, right_value);
 				},
 
 				_ => {
@@ -615,10 +664,10 @@ mod tests {
 			("false == false", LiteralValue::Boolean(false), "==", LiteralValue::Boolean(false)),
 		];
 
-		for test in tests {
-			let expression = parse_expression(test.0);
+		for (input, expected_left, expected_operator, expected_right) in tests {
+			let expression = parse_expression(input);
 
-			check_infix_expression(expression, test.1, test.2, test.3);
+			check_infix_expression(expression, expected_left, expected_operator, expected_right);
 		}
 	}
 
@@ -709,12 +758,24 @@ mod tests {
 				"!(true == true)",
 				"(!(true == true))",
 			),
+			(
+				"a + add(b * c) + d",
+				"((a + add((b * c))) + d)",
+			),
+			(
+				"add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+				"add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+			),
+			(
+				"add(a + b + c * d / f + g)",
+				"add((((a + b) + ((c * d) / f)) + g))",
+			),
 		];
 
-		for test in tests {
-			let program = parse(test.0);
+		for (input, expected_program) in tests {
+			let program = parse(input);
 
-			assert_eq!(program.to_string(), test.1);
+			assert_eq!(program.to_string(), expected_program);
 		}
 	}
 
@@ -793,6 +854,35 @@ mod tests {
 			_ => {
 				panic!("expression is not IfExpression. got={:?}", expression);
 			}
+		}
+	}
+
+	#[test]
+	fn test_parsing_call_expression() {
+		let input = "add(1, 2* 3, 4 +5);";
+
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::Call(ast::CallExpression { identifier, mut arguments, .. }) => {
+				check_identifier(*identifier, "add");
+
+				let args_count = arguments.len();
+				if args_count != 3 {
+					panic!("wrong number of arguments. got={}", args_count);
+				}
+
+				let arg0 = arguments.remove(0);
+				check_literal_expression(arg0, LiteralValue::Integer(1));
+
+				let arg1 = arguments.remove(0);
+				check_infix_expression(arg1, LiteralValue::Integer(2), "*", LiteralValue::Integer(3));
+
+				let arg2 = arguments.remove(0);
+				check_infix_expression(arg2, LiteralValue::Integer(4), "+", LiteralValue::Integer(5));
+			}
+
+			_ => panic!("expression is not CallExpression. got={:?}", expression),
 		}
 	}
 }

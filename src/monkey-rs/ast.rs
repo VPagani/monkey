@@ -11,7 +11,7 @@ pub struct Program {
 
 // Statements
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Statement {
 	Let(LetStatement),
 	Return(ReturnStatement),
@@ -19,26 +19,26 @@ pub enum Statement {
 	Block(BlockStatement),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LetStatement {
 	pub token: Token,
 	pub name: IdentifierExpression,
 	pub value: Option<Expression>
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReturnStatement {
 	pub token: Token,
 	pub value: Option<Expression>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExpressionStatement {
 	pub token: Token,
 	pub expression: Expression,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockStatement {
 	pub token: Token,
 	pub statements: Vec<Statement>,
@@ -47,7 +47,7 @@ pub struct BlockStatement {
 
 // Expressions
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Expression {
 	Identifier(IdentifierExpression),
 	BooleanLiteral(BooleanLiteralExpression),
@@ -55,45 +55,53 @@ pub enum Expression {
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
 	If(IfExpression),
+	Call(CallExpression),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IdentifierExpression {
 	pub token: Token,
 	pub value: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BooleanLiteralExpression {
 	pub token: Token,
 	pub value: bool,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IntegerLiteralExpression {
 	pub token: Token,
 	pub value: i64,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrefixExpression {
 	pub operator: Token,
 	pub right: Box<Expression>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InfixExpression {
 	pub operator: Token,
 	pub left: Box<Expression>,
 	pub right: Box<Expression>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IfExpression {
 	pub token: Token,
 	pub condition: Box<Expression>,
 	pub consequence: BlockStatement,
 	pub alternative: Option<BlockStatement>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallExpression {
+	pub token: Token,
+	pub identifier: Box<Expression>,
+	pub arguments: Vec<Expression>,
 }
 
 impl Program {
@@ -204,6 +212,7 @@ impl Node for Expression {
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
 			If(IfExpression { token, .. }) => token.literal.as_str(),
+			Call(CallExpression { token, .. }) => token.literal.as_str(),
 		}
 	}
 
@@ -216,6 +225,7 @@ impl Node for Expression {
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.clone(),
 			Prefix(PrefixExpression { operator, right }) => format!("({}{})", operator.literal, right.to_string()),
 			Infix(InfixExpression { left, operator, right }) => format!("({} {} {})", left.to_string(), operator.literal, right.to_string()),
+
 			If(IfExpression { condition, consequence, alternative, .. }) => {
 				let mut out = String::new();
 
@@ -228,6 +238,17 @@ impl Node for Expression {
 					out += "else ";
 					out += alternative.to_string().as_str();
 				}
+
+				return out;
+			}
+
+			Call(CallExpression { identifier, arguments, .. }) => {
+				let mut out = String::new();
+
+				out += identifier.to_string().as_str();
+				out += "(";
+				out += arguments.iter().map(|arg| arg.to_string()).collect::<Vec<String>>().join(", ").as_str();
+				out += ")";
 
 				return out;
 			}
