@@ -4,10 +4,11 @@ use monkey::repl::Repl;
 
 fn main()  -> Result<(), Box<dyn Error>> {
     println!("");
-    println!("Hello {}! This is the Monkey programming language", whoami::username());
+    println!("Hello {}! This is the Monkey programming language!", whoami::username());
     println!("Fell free to type in commands\n");
 
-    Repl::start(io::stdin(), &mut io::stdout())?;
+    let repl = Repl::new();
+    repl.start(io::stdin(), &mut io::stdout())?;
 
     Ok(())
 }
