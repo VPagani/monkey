@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"monkey/eval"
 	"monkey/lexer"
 	"monkey/parser"
 	"monkey/token"
@@ -19,7 +20,7 @@ const (
 	REPL
 )
 
-const REPL_TYPE = RPPL
+const REPL_TYPE = REPL
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
@@ -39,6 +40,8 @@ func Start(in io.Reader, out io.Writer) {
 			printProgramTokens(out, l)
 		case RPPL:
 			printProgramParsed(out, l)
+		case REPL:
+			printProgramEvaluated(out, l)
 		}
 	}
 }
@@ -60,6 +63,24 @@ func printProgramParsed(out io.Writer, lexer *lexer.Lexer) bool {
 
 	io.WriteString(out, program.String())
 	io.WriteString(out, "\n")
+	return true
+}
+
+func printProgramEvaluated(out io.Writer, lexer *lexer.Lexer) bool {
+	p := parser.New(lexer)
+
+	program := p.ParseProgram()
+	if len(p.Errors()) != 0 {
+		printParseErrors(out, p.Errors())
+		return false
+	}
+
+	evaluated := eval.Eval(program)
+	if evaluated != nil {
+		io.WriteString(out, evaluated.Inspect())
+		io.WriteString(out, "\n")
+	}
+
 	return true
 }
 
