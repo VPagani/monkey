@@ -221,6 +221,13 @@ impl<'a> Parser<'a> {
 				))
 			},
 
+			TokenType::True | TokenType::False => {
+				Some(ast::Expression::BooleanLiteral(ast::BooleanLiteralExpression {
+					value: operator.ttype == TokenType::True,
+					token: operator,
+				}))
+			}
+
 			TokenType::Bang | TokenType::Minus => {
 				self.next_token();
 
@@ -291,7 +298,7 @@ mod tests {
 		return program;
 	}
 
-	fn parse_program(input: &str, expected_statements: usize) -> Program {
+	fn parse_statements(input: &str, expected_statements: usize) -> Program {
 		let program = parse(input);
 
 		let statement_length = program.statements.len();
@@ -303,7 +310,7 @@ mod tests {
 	}
 
 	fn parse_expression(input: &str) -> Expression {
-		let mut program = parse_program(input, 1);
+		let mut program = parse_statements(input, 1);
 		let statement = program.statements.pop();
 
 		match statement {
@@ -354,7 +361,7 @@ mod tests {
 		let foobar = 838383;
 		";
 
-		let program = parse_program(input, 3);
+		let program = parse_statements(input, 3);
 
 		let tests: Vec<&str> = vec![
 			("x"),
@@ -375,7 +382,7 @@ mod tests {
 		return 95345;
 		";
 
-		let program = parse_program(input, 3);
+		let program = parse_statements(input, 3);
 
 		for stmt in program.statements.into_iter() {
 			assert!(matches!(stmt, Statement::Return { .. }));
@@ -418,14 +425,34 @@ mod tests {
 		}
 	}
 
+	fn check_boolean_literal(expression: Expression, value: bool) {
+		match expression {
+			Expression::BooleanLiteral(ast::BooleanLiteralExpression { token, value: boolean_value, .. }) => {
+				if boolean_value != value {
+					panic!("integer is not '{}'. got={}", value, boolean_value);
+				}
+
+				if token.literal != format!("{}", value) {
+					panic!("integer.token.literal is not '{}'. got={}", value, token.literal);
+				}
+			},
+
+			_ => {
+				panic!("expression is not BooleanLiteral. got={:?}", expression);
+			}
+		}
+	}
+
 	enum LiteralValue<'a> {
 		Integer(i64),
+		Boolean(bool),
 		Identifier(&'a str),
 	}
 
 	fn check_literal_expression(expression: Expression, expected_value: LiteralValue) {
 		match expected_value {
 			LiteralValue::Integer(value) => check_integer_literal(expression, value),
+			LiteralValue::Boolean(value) => check_boolean_literal(expression, value),
 			LiteralValue::Identifier(value) => check_identifier(expression, value),
 		}
 	}
@@ -447,6 +474,20 @@ mod tests {
 
 		check_integer_literal(expression, 5);
 
+	}
+
+	#[test]
+	fn test_parsing_boolean_literal_expression() {
+		let tests = vec![
+			("true;", true),
+			("false;", false),
+		];
+
+		for test in tests {
+			let expression = parse_expression(test.0);
+
+			check_boolean_literal(expression, test.1);
+		}
 	}
 
 	#[test]
@@ -484,6 +525,9 @@ mod tests {
 			("5 > 5;", LiteralValue::Integer(5), ">", LiteralValue::Integer(5)),
 			("5 == 5;", LiteralValue::Integer(5), "==", LiteralValue::Integer(5)),
 			("5 != 5;", LiteralValue::Integer(5), "!=", LiteralValue::Integer(5)),
+			("true == true", LiteralValue::Boolean(true), "==", LiteralValue::Boolean(true)),
+			("true != false", LiteralValue::Boolean(true), "!=", LiteralValue::Boolean(false)),
+			("false == false", LiteralValue::Boolean(false), "==", LiteralValue::Boolean(false)),
 		];
 
 		for test in tests {
@@ -554,6 +598,22 @@ mod tests {
 			(
 				"3 + 4 * 5 == 3 * 1 + 4 * 5",
 				"((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+			),
+			(
+				"true",
+				"true",
+			),
+			(
+				"false",
+				"false",
+			),
+			(
+				"3 > 5 == false",
+				"((3 > 5) == false)",
+			),
+			(
+				"3 < 5 == true",
+				"((3 < 5) == true)",
 			),
 		];
 

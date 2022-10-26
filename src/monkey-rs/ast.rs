@@ -43,6 +43,7 @@ pub struct ExpressionStatement {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
 	Identifier(IdentifierExpression),
+	BooleanLiteral(BooleanLiteralExpression),
 	IntegerLiteral(IntegerLiteralExpression),
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
@@ -52,6 +53,12 @@ pub enum Expression {
 pub struct IdentifierExpression {
 	pub token: Token,
 	pub value: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BooleanLiteralExpression {
+	pub token: Token,
+	pub value: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -157,6 +164,7 @@ impl Node for Expression {
 
 		return match self {
 			Identifier(IdentifierExpression { value, .. }) => value.as_str(),
+			BooleanLiteral(BooleanLiteralExpression { token, .. }) => token.literal.as_str(),
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.as_str(),
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
@@ -168,6 +176,7 @@ impl Node for Expression {
 
 		return match self {
 			Identifier(IdentifierExpression { value, .. }) => value.clone(),
+			BooleanLiteral(BooleanLiteralExpression { token, .. }) => token.literal.clone(),
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.clone(),
 			Prefix(PrefixExpression { operator, right }) => format!("({}{})", operator.literal, right.to_string()),
 			Infix(InfixExpression { left, operator, right }) => format!("({} {} {})", left.to_string(), operator.literal, right.to_string()),
