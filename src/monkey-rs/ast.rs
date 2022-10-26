@@ -16,6 +16,7 @@ pub enum Statement {
 	Let(LetStatement),
 	Return(ReturnStatement),
 	Expression(ExpressionStatement),
+	Block(BlockStatement),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -37,6 +38,12 @@ pub struct ExpressionStatement {
 	pub expression: Expression,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct BlockStatement {
+	pub token: Token,
+	pub statements: Vec<Statement>,
+}
+
 
 // Expressions
 
@@ -47,6 +54,7 @@ pub enum Expression {
 	IntegerLiteral(IntegerLiteralExpression),
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
+	If(IfExpression),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -80,6 +88,14 @@ pub struct InfixExpression {
 	pub right: Box<Expression>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct IfExpression {
+	pub token: Token,
+	pub condition: Box<Expression>,
+	pub consequence: BlockStatement,
+	pub alternative: Option<BlockStatement>,
+}
+
 impl Program {
 	pub fn new() -> Program {
 		Program {
@@ -98,6 +114,19 @@ impl Program {
 	}
 }
 
+impl BlockStatement {
+	pub fn to_string(&self) -> String {
+		let mut out = String::new();
+
+		for statement in self.statements.as_slice() {
+			out += statement.to_string().as_str();
+		}
+
+		return out;
+		
+	}
+}
+
 impl Node for Statement {
 	fn literal(&self) -> &str {
 		use Statement::*;
@@ -106,6 +135,7 @@ impl Node for Statement {
 			Let(LetStatement { token, .. }) => token.literal.as_str(),
 			Return(ReturnStatement { token, .. })  => token.literal.as_str(),
 			Expression(ExpressionStatement { token, .. }) => token.literal.as_str(),
+			Block(BlockStatement { token, .. }) => token.literal.as_str(),
 		}
 	}
 
@@ -142,8 +172,13 @@ impl Node for Statement {
 
 				return out;
 			},
+			
 			Expression(ExpressionStatement { expression, .. }) => {
 				return expression.to_string();
+			},
+
+			Block(block_statement) => {
+				block_statement.to_string()
 			}
 		}
 	}
@@ -168,6 +203,7 @@ impl Node for Expression {
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.as_str(),
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
+			If(IfExpression { token, .. }) => token.literal.as_str(),
 		}
 	}
 
@@ -180,6 +216,21 @@ impl Node for Expression {
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.clone(),
 			Prefix(PrefixExpression { operator, right }) => format!("({}{})", operator.literal, right.to_string()),
 			Infix(InfixExpression { left, operator, right }) => format!("({} {} {})", left.to_string(), operator.literal, right.to_string()),
+			If(IfExpression { condition, consequence, alternative, .. }) => {
+				let mut out = String::new();
+
+				out += "if";
+				out += condition.to_string().as_str();
+				out += " ";
+				out += consequence.to_string().as_str();
+
+				if let Some(alternative) = alternative {
+					out += "else ";
+					out += alternative.to_string().as_str();
+				}
+
+				return out;
+			}
 		}
 	}
 }

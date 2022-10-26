@@ -167,6 +167,24 @@ impl<'a> Parser<'a> {
 		return Some(ast::ExpressionStatement { token, expression });
 	}
 
+	fn parse_block_statement(&mut self) -> Option<ast::BlockStatement> {
+		let token = self.current_token.clone();
+		let mut statements: Vec<ast::Statement> = vec![];
+
+		self.next_token();
+
+		while !self.current_token_is(TokenType::RBrace) && !self.current_token_is(TokenType::EOF) {
+			statements.push(self.parse_statement()?);
+
+			self.next_token();
+		}
+
+		return Some(ast::BlockStatement {
+			token,
+			statements,
+		});
+	}
+
 	fn parse_expression(&mut self, precedence: Precedence) -> Option<ast::Expression> {
 		let mut left_exp:ast::Expression;
 		
@@ -251,6 +269,46 @@ impl<'a> Parser<'a> {
 				return expression;
 			}
 
+			TokenType::If => {
+				if !self.expect_peek(TokenType::LParen) {
+					return None;
+				}
+
+				self.next_token();
+
+				let condition = Box::new(self.parse_expression(Precedence::Lowest)?);
+
+				if !self.expect_peek(TokenType::RParen) {
+					return None;
+				}
+
+				if !self.expect_peek(TokenType::LBrace) {
+					return None;
+				}
+
+				let consequence = self.parse_block_statement()?;
+				let mut alternative = None;
+
+				if self.peek_token_is(TokenType::Else) {
+					self.next_token();
+
+					if !self.expect_peek(TokenType::LBrace) {
+						return None;
+					}
+
+					alternative = Some(self.parse_block_statement()?);
+				}
+
+				return Some(ast::Expression::If(
+					ast::IfExpression {
+						token: operator,
+						condition,
+						consequence,
+						alternative
+					}
+				));
+			}
+
 			_ => None,
 		}
 	}
@@ -287,7 +345,6 @@ impl<'a> Parser<'a> {
 
 			_ => Err(left),
 		}
-
 	}
 }
 
@@ -469,6 +526,22 @@ mod tests {
 		}
 	}
 
+	fn check_infix_expression(expression: Expression, left_value: LiteralValue, operator_literal: &str, right_value: LiteralValue) {
+		match expression {
+			Expression::Infix(ast::InfixExpression { operator, left, right }) => {
+				assert_eq!(operator.literal, operator_literal);
+
+				check_literal_expression(*left, left_value);
+				check_literal_expression(*right, right_value);
+			},
+
+			_ => {
+				panic!("expression is not Infix. got={:?}", expression);
+			}
+		}
+
+	}
+
 	#[test]
 	fn test_parsing_identifier_expression() {
 		let input = "foobar;";
@@ -545,18 +618,7 @@ mod tests {
 		for test in tests {
 			let expression = parse_expression(test.0);
 
-			match expression {
-				Expression::Infix(ast::InfixExpression { operator, left, right }) => {
-					assert_eq!(test.2, operator.literal);
-
-					check_literal_expression(*left, test.1);
-					check_literal_expression(*right, test.3);
-				},
-
-				_ => {
-					panic!("expression is not Infix. got={:?}", expression);
-				}
-			}
+			check_infix_expression(expression, test.1, test.2, test.3);
 		}
 	}
 
@@ -653,6 +715,84 @@ mod tests {
 			let program = parse(test.0);
 
 			assert_eq!(program.to_string(), test.1);
+		}
+	}
+
+	#[test]
+	fn test_parsing_if_expression() {
+		let input = "if (x < y) { x }";
+
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::If(ast::IfExpression { condition, mut consequence, alternative, .. }) => {
+				check_infix_expression(*condition, LiteralValue::Identifier("x"), "<", LiteralValue::Identifier("y"));
+
+				let statement_count = consequence.statements.len();
+				assert_eq!(statement_count, 1, "consequence statements length is not 1");
+
+				let statement = consequence.statements.pop();
+				match statement {
+					Some(Statement::Expression(ast::ExpressionStatement { expression, .. })) => {
+						check_identifier(expression, "x");
+					}
+					_ => panic!("consequece.statements[0] is not Expression. got={:?}", statement),
+				}
+
+				if let Some(alternative) = alternative {
+					panic!("alternative is not None. got={:?}", alternative);
+				}
+			},
+
+			_ => {
+				panic!("expression is not IfExpression. got={:?}", expression);
+			}
+		}
+	}
+
+	#[test]
+	fn test_parsing_if_else_expression() {
+		let input = "if (x < y) { x } else { y }";
+
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::If(ast::IfExpression { condition, mut consequence, alternative, .. }) => {
+				check_infix_expression(*condition, LiteralValue::Identifier("x"), "<", LiteralValue::Identifier("y"));
+
+				let statement_count = consequence.statements.len();
+				assert_eq!(statement_count, 1, "consequence statements length is not 1");
+
+				let statement = consequence.statements.pop();
+				match statement {
+					Some(Statement::Expression(ast::ExpressionStatement { expression, .. })) => {
+						check_identifier(expression, "x");
+					}
+					_ => panic!("consequece.statements[0] is not Expression. got={:?}", statement),
+				}
+
+				match alternative {
+					Some(mut alternative) => {
+						let statement_count = alternative.statements.len();
+						assert_eq!(statement_count, 1, "altenative statements length is not 1");
+
+						let statement = alternative.statements.pop();
+						match statement {
+							Some(Statement::Expression(ast::ExpressionStatement { expression, .. })) => {
+								check_identifier(expression, "y");
+							}
+							_ => panic!("alternative.statements[0] is not Expression. got={:?}", statement),
+						}
+
+					}
+
+					None => panic!("alternative is None"),
+				}
+			},
+
+			_ => {
+				panic!("expression is not IfExpression. got={:?}", expression);
+			}
 		}
 	}
 }
