@@ -101,6 +101,7 @@ impl<'a> Parser<'a> {
 		match self.current_token.ttype {
 			TokenType::Let => self.parse_let_statement().map(ast::Statement::Let),
 			TokenType::Return => self.parse_return_statement().map(ast::Statement::Return),
+			TokenType::LBrace => self.parse_block_statement().map(ast::Statement::Block),
 			_ => self.parse_expression_statement().map(ast::Statement::Expression),
 		}
 	}

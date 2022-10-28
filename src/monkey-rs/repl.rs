@@ -3,7 +3,7 @@ use std::io::{self, Write, Error};
 use crate::{
 	token::TokenType,
 	lexer::Lexer,
-	parser::Parser
+	parser::Parser, eval::eval
 };
 
 const PROMPT: &str = ">> ";
@@ -15,7 +15,7 @@ enum ReplType {
 	REPL,
 }
 
-const REPL_TYPE: ReplType = ReplType::RPPL;
+const REPL_TYPE: ReplType = ReplType::REPL;
 
 pub struct Repl;
 
@@ -43,7 +43,9 @@ impl Repl {
 					self.print_program_parsed(stdout, &mut lexer)?;
 				}
 
-				_ => {}
+				ReplType::REPL => {
+					self.print_program_evaluated(stdout, &mut lexer)?;
+				}
 			}
 		}
 	}
@@ -68,6 +70,21 @@ impl Repl {
 		}
 
 		writeln!(stdout, "{}", program.to_string())?;
+
+		return Ok(());
+	}
+
+	fn print_program_evaluated<'a>(&self, stdout: &mut io::Stdout, lexer: &'a mut Lexer<'a>) -> Result<(), Error> {
+		let mut parser: Parser<'a> = Parser::new(lexer);
+		let program = parser.parse_program();
+
+		if parser.errors.len() != 0 {
+			self.print_parser_errors(stdout, parser.errors)?;
+			return Ok(());
+		}
+
+		let evaluated = eval(program);
+		writeln!(stdout, "{}", evaluated.inspect())?;
 
 		return Ok(());
 	}
