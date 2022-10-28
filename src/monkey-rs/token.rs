@@ -40,6 +40,46 @@ pub enum TokenType {
 	Return,
 }
 
+impl TokenType {
+	pub fn inspect<'a>(self) -> &'a str {
+		match self {
+			TokenType::Illegal => "ILLEGAL",
+			TokenType::EOF => "EOF",
+
+			TokenType::Ident => "IDENTIFIER",
+			TokenType::Int => "INTEGER",
+
+			TokenType::Bang => "!",
+			TokenType::Equal => "==",
+			TokenType::NotEqual => "!=",
+			TokenType::Assign => "=",
+			TokenType::Plus => "+",
+			TokenType::Minus => "-",
+			TokenType::Asterisk => "*",
+			TokenType::Slash => "/",
+
+			TokenType::LowerThan => "<",
+			TokenType::GreaterThan => ">",
+
+			TokenType::Comma => ",",
+			TokenType::Semicolon => ";",
+
+			TokenType::LParen => "(",
+			TokenType::RParen => ")",
+			TokenType::LBrace => "{",
+			TokenType::RBrace => "}",
+
+			TokenType::Function => "FUNCTION",
+			TokenType::Let => "LET",
+			TokenType::True => "TRUE",
+			TokenType::False => "FALSE",
+			TokenType::If => "IF",
+			TokenType::Else => "ELSE",
+			TokenType::Return => "RETURN",
+		}
+	}
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Token {
 	pub ttype: TokenType,
