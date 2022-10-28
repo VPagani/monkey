@@ -74,10 +74,6 @@ func evalProgram(program *ast.Program) object.Object {
 	for _, statement := range program.Statements {
 		result = Eval(statement)
 
-		if returnValue, ok := result.(*object.ReturnValue); ok {
-			return returnValue.Value
-		}
-
 		switch result := result.(type) {
 		case *object.ReturnValue:
 			return result.Value
@@ -222,9 +218,9 @@ func evalIfExpression(ifExpr *ast.IfExpression) object.Object {
 	}
 
 	if isTruthy(condition) {
-		return Eval(ifExpr.Consequence)
+		return evalBlockStatement(ifExpr.Consequence)
 	} else if ifExpr.Alternative != nil {
-		return Eval(ifExpr.Alternative)
+		return evalBlockStatement(ifExpr.Alternative)
 	} else {
 		return NULL
 	}
