@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq, Eq)]
+use std::collections::HashMap;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Object {
 	Null,
 	Boolean(bool),
@@ -34,5 +36,21 @@ impl Object {
 			Object::Error(_) => true,
 			_ => false,
 		}
+	}
+}
+
+#[derive(Default)]
+pub struct Environment {
+	store: HashMap<String, Object>,
+}
+
+impl Environment {
+	pub fn get(&self, name: &String) -> Option<Object> {
+		self.store.get(name).map(|value| (*value).clone())
+	}
+
+	pub fn set(&mut self, name: String, value: Object) -> Object {
+		self.store.insert(name, value.clone());
+		return value;
 	}
 }

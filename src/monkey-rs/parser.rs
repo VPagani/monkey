@@ -127,8 +127,8 @@ impl<'a> Parser<'a> {
 
 		let value = self.parse_expression(Precedence::Lowest);
 
-		if !self.expect_peek(TokenType::Semicolon) {
-			return None;
+		if self.peek_token_is(TokenType::Semicolon) {
+			self.next_token()
 		}
 
 		return Some(

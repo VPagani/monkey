@@ -1,10 +1,10 @@
-use crate::{ast, ast::{Statement, Expression}, object::Object, token::TokenType};
+use crate::{ast, ast::{Statement, Expression}, object::{Object, Environment}, token::TokenType};
 
-pub fn eval<'a>(program: ast::Program) -> Object {
+pub fn eval<'a>(program: ast::Program, env: &mut Environment) -> Object {
 	let mut result: Object = Object::Null;
 
 	for statement in program.statements {
-		result = eval_statement(statement);
+		result = eval_statement(statement, env);
 
 		match result {
 			Object::ReturnValue(object) => return *object,
@@ -16,13 +16,14 @@ pub fn eval<'a>(program: ast::Program) -> Object {
 	return result;
 }
 
-pub fn eval_statement(statement: Statement) -> Object {
+pub fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
 	match statement {
-		Statement::Expression(ast::ExpressionStatement { expression, .. }) => eval_expression(expression),
+		Statement::Expression(ast::ExpressionStatement { expression, .. }) => eval_expression(expression, env),
+
 		Statement::Return(ast::ReturnStatement { value, .. }) => {
 			match value {
 				Some(value) => {
-					let right = eval_expression(value);
+					let right = eval_expression(value, env);
 					if right.is_error() {
 						return right;
 					}
@@ -33,19 +34,33 @@ pub fn eval_statement(statement: Statement) -> Object {
 			}
 		}
 
-		Statement::Block(block_statement) => eval_block_statement(block_statement),
+		Statement::Let(ast::LetStatement { name, value, .. }) => {
+			let value = value.map(|value| eval_expression(value, env)).unwrap_or(Object::Null);
+			if value.is_error() {
+				return value;
+			}
 
-		_ =>  Object::Null,
+			return env.set(name.value, value);
+		}
+
+		Statement::Block(block_statement) => eval_block_statement(block_statement, env),
 	}
 }
 
-pub fn eval_expression<'a>(expression: Expression) -> Object {
+pub fn eval_expression<'a>(expression: Expression, env: &mut Environment) -> Object {
 	match expression {
 		Expression::BooleanLiteral(ast::BooleanLiteralExpression { value, .. }) => Object::Boolean(value),
 		Expression::IntegerLiteral(ast::IntegerLiteralExpression { value, .. }) => Object::Integer(value),
 
+		
+		Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
+			env.get(&name).unwrap_or(
+				Object::Error(format!("identifier not found: {}", name))
+			)
+		}
+
 		Expression::Prefix(ast::PrefixExpression { operator, right, .. }) => {
-			let right = eval_expression(*right);
+			let right = eval_expression(*right, env);
 			if right.is_error() {
 				return right;
 			}
@@ -54,12 +69,12 @@ pub fn eval_expression<'a>(expression: Expression) -> Object {
 		}
 
 		Expression::Infix(ast::InfixExpression { left, operator, right, .. }) => {
-			let left = eval_expression(*left);
+			let left = eval_expression(*left, env);
 			if left.is_error() {
 				return left;
 			}
 
-			let right = eval_expression(*right);
+			let right = eval_expression(*right, env);
 			if right.is_error() {
 				return right;
 			}
@@ -68,12 +83,12 @@ pub fn eval_expression<'a>(expression: Expression) -> Object {
 		}
 
 		Expression::If(ast::IfExpression { condition, consequence, alternative, .. }) => {
-			let condition = eval_expression(*condition);
+			let condition = eval_expression(*condition, env);
 
 			if is_truthy(condition) {
-				return eval_block_statement(consequence);
+				return eval_block_statement(consequence, env);
 			} else if let Some(alternative) = alternative {
-				return eval_block_statement(alternative);
+				return eval_block_statement(alternative, env);
 			} else {
 				return Object::Null;
 			}
@@ -83,11 +98,11 @@ pub fn eval_expression<'a>(expression: Expression) -> Object {
 	}
 }
 
-fn eval_block_statement(block_statement: ast::BlockStatement) -> Object {
+fn eval_block_statement(block_statement: ast::BlockStatement, env: &mut Environment) -> Object {
 	let mut result: Object = Object::Null;
 
 	for statement in block_statement.statements {
-		result = eval_statement(statement);
+		result = eval_statement(statement, env);
 
 		match result {
 			Object::ReturnValue(_) | Object::Error(_) => return result,
@@ -182,17 +197,18 @@ pub fn is_error(object: Object) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{object::Object, lexer::Lexer, parser::Parser};
+    use crate::{object::{Object, Environment}, lexer::Lexer, parser::Parser};
 
     use super::eval;
 
 	fn check_eval(input: &str) -> Object {
+		let mut env = Environment::default();
 		let mut lexer = Lexer::new(input);
 		let mut parser = Parser::new(&mut lexer);
 
 		let program = parser.parse_program();
 
-		return eval(program);
+		return eval(program, &mut env);
 	}
 
 	#[test]
@@ -351,6 +367,21 @@ mod tests {
 		for (input, expected_value) in tests {
 			let evaluated = check_eval(input);
 			assert_eq!(evaluated, Object::Error(expected_value.to_string()));
+		}
+	}
+
+	#[test]
+	fn test_eval_let_statement() {
+		let tests = vec![
+			("let a = 5; a;", 5),
+			("let a = 5 * 5; a;", 25),
+			("let a = 5; let b = a; b;", 5),
+			("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+		];
+
+		for (input, expected_value) in tests {
+			let evaluated = check_eval(input);
+			assert_eq!(evaluated, Object::Integer(expected_value));
 		}
 	}
 }

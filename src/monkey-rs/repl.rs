@@ -3,7 +3,9 @@ use std::io::{self, Write, Error};
 use crate::{
 	token::TokenType,
 	lexer::Lexer,
-	parser::Parser, eval::eval
+	parser::Parser,
+	object::Environment,
+	eval::eval
 };
 
 const PROMPT: &str = ">> ";
@@ -17,14 +19,18 @@ enum ReplType {
 
 const REPL_TYPE: ReplType = ReplType::REPL;
 
-pub struct Repl;
+pub struct Repl {
+	environment: Environment,
+}
 
 impl Repl {
 	pub fn new() -> Self {
-		Repl {}
+		Repl {
+			environment: Environment::default(),
+		}
 	}
 
-	pub fn start(&self, stdin: io::Stdin, stdout: &mut io::Stdout) -> Result<(), Error> {
+	pub fn start(&mut self, stdin: io::Stdin, stdout: &mut io::Stdout) -> Result<(), Error> {
 		loop {
 			write!(stdout, "{}", PROMPT)?;
 			stdout.flush()?;
@@ -74,7 +80,7 @@ impl Repl {
 		return Ok(());
 	}
 
-	fn print_program_evaluated<'a>(&self, stdout: &mut io::Stdout, lexer: &'a mut Lexer<'a>) -> Result<(), Error> {
+	fn print_program_evaluated<'a>(&mut self, stdout: &mut io::Stdout, lexer: &'a mut Lexer<'a>) -> Result<(), Error> {
 		let mut parser: Parser<'a> = Parser::new(lexer);
 		let program = parser.parse_program();
 
@@ -83,7 +89,7 @@ impl Repl {
 			return Ok(());
 		}
 
-		let evaluated = eval(program);
+		let evaluated = eval(program, &mut self.environment);
 		writeln!(stdout, "{}", evaluated.inspect())?;
 
 		return Ok(());

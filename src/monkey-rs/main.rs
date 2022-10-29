@@ -7,7 +7,7 @@ fn main()  -> Result<(), Box<dyn Error>> {
     println!("Hello {}! This is the Monkey programming language!", whoami::username());
     println!("Fell free to type in commands\n");
 
-    let repl = Repl::new();
+    let mut repl = Repl::new();
     repl.start(io::stdin(), &mut io::stdout())?;
 
     Ok(())
