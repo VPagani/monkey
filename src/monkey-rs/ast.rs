@@ -55,6 +55,7 @@ pub enum Expression {
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
 	If(IfExpression),
+	Function(FunctionExpression),
 	Call(CallExpression),
 }
 
@@ -95,6 +96,13 @@ pub struct IfExpression {
 	pub condition: Box<Expression>,
 	pub consequence: BlockStatement,
 	pub alternative: Option<BlockStatement>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FunctionExpression {
+	pub token: Token,
+	pub parameters: Vec<IdentifierExpression>,
+	pub body: BlockStatement,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -212,6 +220,7 @@ impl Node for Expression {
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
 			If(IfExpression { token, .. }) => token.literal.as_str(),
+			Function(FunctionExpression { token, .. }) => token.literal.as_str(),
 			Call(CallExpression { token, .. }) => token.literal.as_str(),
 		}
 	}
@@ -238,6 +247,20 @@ impl Node for Expression {
 					out += "else ";
 					out += alternative.to_string().as_str();
 				}
+
+				return out;
+			}
+
+			Function(FunctionExpression { parameters, body, .. }) => {
+				let mut out = String::new();
+
+				out += "fn";
+				out += "(";
+				out += parameters.iter()
+					.map(|param| param.value.clone())
+					.collect::<Vec<String>>().join(", ").as_str();
+				out += "(";
+				out += body.to_string().as_str();
 
 				return out;
 			}

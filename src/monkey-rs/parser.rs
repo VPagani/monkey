@@ -313,6 +313,26 @@ impl<'a> Parser<'a> {
 				));
 			}
 
+			TokenType::Function => {
+				if !self.expect_peek(TokenType::LParen) {
+					return None;
+				}
+
+				let parameters = self.parse_function_parameters()?;
+
+				if !self.expect_peek(TokenType::LBrace) {
+					return None;
+				}
+
+				let body = self.parse_block_statement()?;
+
+				return Some(ast::Expression::Function(ast::FunctionExpression {
+					token: operator,
+					parameters,
+					body,
+				}))
+			}
+
 			_ => None,
 		}
 	}
@@ -385,6 +405,43 @@ impl<'a> Parser<'a> {
 		}
 
 		return Some(args);
+	}
+
+	fn parse_function_parameters(&mut self) -> Option<Vec<ast::IdentifierExpression>> {
+		let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
+
+		if self.peek_token_is(TokenType::RParen) {
+			self.next_token();
+			return Some(identifiers);
+		}
+
+		self.next_token();
+		let token = self.current_token.clone();
+		identifiers.push(
+			ast::IdentifierExpression {
+				value: token.literal.clone(),
+				token,
+			}
+		);
+
+		while self.peek_token_is(TokenType::Comma) {
+			self.next_token();
+			self.next_token();
+
+			let token = self.current_token.clone();
+			identifiers.push(
+				ast::IdentifierExpression {
+					value: token.literal.clone(),
+					token,
+				}
+			);
+		}
+
+		if !self.expect_peek(TokenType::RParen) {
+			return None;
+		}
+
+		return Some(identifiers);
 	}
 }
 
@@ -854,6 +911,46 @@ mod tests {
 
 			_ => {
 				panic!("expression is not IfExpression. got={:?}", expression);
+			}
+		}
+	}
+
+	#[test]
+	fn test_parsing_function_expression() {
+		let input = "fn(x, y) { x + y; }";
+
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::Function(ast::FunctionExpression { parameters, mut body , .. }) => {
+				if parameters.len() != 2 {
+					panic!("function parameters wrong. want 2, got={}", parameters.len());
+				}
+
+				if parameters[0].value != "x" {
+					panic!("parameter[0] is not x. got={}", parameters[0].value);
+				}
+
+				if parameters[0].value != "y" {
+					panic!("parameter[1] is not y. got={}", parameters[1].value);
+				}
+
+				if body.statements.len() != 1 {
+					panic!("statements is not 1. got={}", body.statements.len());
+				}
+
+				let statement = body.statements.remove(0);
+				match statement {
+					Statement::Expression(ast::ExpressionStatement { expression, .. }) => {
+						check_infix_expression(expression, LiteralValue::Identifier("x"), "+", LiteralValue::Identifier("y"));
+					}
+					
+					_ => panic!("body statement is not Expression. got={:?}", statement),
+				}
+			}
+
+			_ => {
+				panic!("expression is not Function. got={:?}", expression);
 			}
 		}
 	}
