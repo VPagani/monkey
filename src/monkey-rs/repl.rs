@@ -4,8 +4,7 @@ use crate::{
 	token::TokenType,
 	lexer::Lexer,
 	parser::Parser,
-	object::Environment,
-	eval::eval
+	eval::Evaluator
 };
 
 const PROMPT: &str = ">> ";
@@ -20,13 +19,13 @@ enum ReplType {
 const REPL_TYPE: ReplType = ReplType::REPL;
 
 pub struct Repl {
-	environment: Environment,
+	evaluator: Evaluator,
 }
 
 impl Repl {
 	pub fn new() -> Self {
 		Repl {
-			environment: Environment::default(),
+			evaluator: Evaluator::new(),
 		}
 	}
 
@@ -66,8 +65,8 @@ impl Repl {
 		return Ok(());
 	}
 
-	fn print_program_parsed<'a>(&self, stdout: &mut io::Stdout, lexer: &'a mut Lexer<'a>) -> Result<(), Error> {
-		let mut parser: Parser<'a> = Parser::new(lexer);
+	fn print_program_parsed<'b>(&self, stdout: &mut io::Stdout, lexer: &'b mut Lexer<'b>) -> Result<(), Error> {
+		let mut parser: Parser<'b> = Parser::new(lexer);
 		let program = parser.parse_program();
 
 		if parser.errors.len() != 0 {
@@ -80,8 +79,8 @@ impl Repl {
 		return Ok(());
 	}
 
-	fn print_program_evaluated<'a>(&mut self, stdout: &mut io::Stdout, lexer: &'a mut Lexer<'a>) -> Result<(), Error> {
-		let mut parser: Parser<'a> = Parser::new(lexer);
+	fn print_program_evaluated<'b>(&mut self, stdout: &mut io::Stdout, lexer: &'b mut Lexer<'b>) -> Result<(), Error> {
+		let mut parser: Parser<'b> = Parser::new(lexer);
 		let program = parser.parse_program();
 
 		if parser.errors.len() != 0 {
@@ -89,7 +88,7 @@ impl Repl {
 			return Ok(());
 		}
 
-		let evaluated = eval(program, &mut self.environment);
+		let evaluated = self.evaluator.eval(program);
 		writeln!(stdout, "{}", evaluated.inspect())?;
 
 		return Ok(());

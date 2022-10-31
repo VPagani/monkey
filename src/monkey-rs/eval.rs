@@ -1,184 +1,252 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{ast, ast::{Statement, Expression}, object::{Object, Environment}, token::TokenType};
 
-pub fn eval<'a>(program: ast::Program, env: &mut Environment) -> Object {
-	let mut result: Object = Object::Null;
+pub struct Evaluator {
+	env: Rc<RefCell<Environment>>
+}
 
-	for statement in program.statements {
-		result = eval_statement(statement, env);
-
-		match result {
-			Object::ReturnValue(object) => return *object,
-			Object::Error(_) => return result,
-			_ => {}
+impl Evaluator {
+	pub fn new() -> Evaluator {
+		Evaluator {
+			env: Rc::new(RefCell::new(Environment::new())),
 		}
 	}
 
-	return result;
-}
+	pub fn eval(&mut self, program: ast::Program) -> Object {
+		let mut result: Object = Object::Null;
+	
+		for statement in program.statements {
+			result = self.eval_statement(statement);
+	
+			match result {
+				Object::ReturnValue(object) => return *object,
+				Object::Error(_) => return result,
+				_ => {}
+			}
+		}
+	
+		return result;
+	}
 
-pub fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
-	match statement {
-		Statement::Expression(ast::ExpressionStatement { expression, .. }) => eval_expression(expression, env),
-
-		Statement::Return(ast::ReturnStatement { value, .. }) => {
-			match value {
-				Some(value) => {
-					let right = eval_expression(value, env);
-					if right.is_error() {
-						return right;
+	pub fn eval_statement(&mut self, statement: Statement) -> Object {
+		match statement {
+			Statement::Expression(ast::ExpressionStatement { expression, .. }) => self.eval_expression(expression),
+	
+			Statement::Return(ast::ReturnStatement { value, .. }) => {
+				match value {
+					Some(value) => {
+						let right = self.eval_expression(value);
+						if right.is_error() {
+							return right;
+						}
+	
+						return Object::ReturnValue(Box::new(right));
 					}
-
-					return Object::ReturnValue(Box::new(right));
+					None => Object::ReturnValue(Box::new(Object::Null)),
 				}
-				None => Object::ReturnValue(Box::new(Object::Null)),
 			}
-		}
-
-		Statement::Let(ast::LetStatement { name, value, .. }) => {
-			let value = value.map(|value| eval_expression(value, env)).unwrap_or(Object::Null);
-			if value.is_error() {
-				return value;
+	
+			Statement::Let(ast::LetStatement { name, value, .. }) => {
+				let value = value.map(|value| self.eval_expression(value)).unwrap_or(Object::Null);
+				if value.is_error() {
+					return value;
+				}
+	
+				return self.env.borrow_mut().set(name.value, value);
 			}
-
-			return env.set(name.value, value);
-		}
-
-		Statement::Block(block_statement) => eval_block_statement(block_statement, env),
-	}
-}
-
-pub fn eval_expression<'a>(expression: Expression, env: &mut Environment) -> Object {
-	match expression {
-		Expression::BooleanLiteral(ast::BooleanLiteralExpression { value, .. }) => Object::Boolean(value),
-		Expression::IntegerLiteral(ast::IntegerLiteralExpression { value, .. }) => Object::Integer(value),
-
-		
-		Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
-			env.get(&name).unwrap_or(
-				Object::Error(format!("identifier not found: {}", name))
-			)
-		}
-
-		Expression::Prefix(ast::PrefixExpression { operator, right, .. }) => {
-			let right = eval_expression(*right, env);
-			if right.is_error() {
-				return right;
-			}
-
-			return eval_expression_prefix(operator.ttype, right);
-		}
-
-		Expression::Infix(ast::InfixExpression { left, operator, right, .. }) => {
-			let left = eval_expression(*left, env);
-			if left.is_error() {
-				return left;
-			}
-
-			let right = eval_expression(*right, env);
-			if right.is_error() {
-				return right;
-			}
-
-			return eval_expression_infix(operator.ttype, left, right);
-		}
-
-		Expression::If(ast::IfExpression { condition, consequence, alternative, .. }) => {
-			let condition = eval_expression(*condition, env);
-
-			if is_truthy(condition) {
-				return eval_block_statement(consequence, env);
-			} else if let Some(alternative) = alternative {
-				return eval_block_statement(alternative, env);
-			} else {
-				return Object::Null;
-			}
-		}
-
-		_ =>  Object::Null,
-	}
-}
-
-fn eval_block_statement(block_statement: ast::BlockStatement, env: &mut Environment) -> Object {
-	let mut result: Object = Object::Null;
-
-	for statement in block_statement.statements {
-		result = eval_statement(statement, env);
-
-		match result {
-			Object::ReturnValue(_) | Object::Error(_) => return result,
-			_ => {}
+	
+			Statement::Block(block_statement) => self.eval_block_statement(block_statement),
 		}
 	}
 
-	return result;
-}
+	pub fn eval_expression(&mut self, expression: Expression) -> Object {
+		match expression {
+			Expression::BooleanLiteral(ast::BooleanLiteralExpression { value, .. }) => Object::Boolean(value),
+			Expression::IntegerLiteral(ast::IntegerLiteralExpression { value, .. }) => Object::Integer(value),
+	
+			
+			Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
+				self.env.borrow().get(&name).unwrap_or(
+					Object::Error(format!("identifier not found: {}", name))
+				)
+			}
+	
+			Expression::Prefix(ast::PrefixExpression { operator, right, .. }) => {
+				let right = self.eval_expression(*right);
+				if right.is_error() {
+					return right;
+				}
+	
+				return self.eval_expression_prefix(operator.ttype, right);
+			}
+	
+			Expression::Infix(ast::InfixExpression { left, operator, right, .. }) => {
+				let left = self.eval_expression(*left);
+				if left.is_error() {
+					return left;
+				}
+	
+				let right = self.eval_expression(*right);
+				if right.is_error() {
+					return right;
+				}
+	
+				return self.eval_expression_infix(operator.ttype, left, right);
+			}
+	
+			Expression::If(ast::IfExpression { condition, consequence, alternative, .. }) => {
+				let condition = self.eval_expression(*condition);
+	
+				if is_truthy(condition) {
+					return self.eval_block_statement(consequence);
+				} else if let Some(alternative) = alternative {
+					return self.eval_block_statement(alternative);
+				} else {
+					return Object::Null;
+				}
+			}
 
-fn eval_expression_prefix(operator: TokenType, right: Object) -> Object {
-	match operator {
-		TokenType::Bang => match right {
-			Object::Null => Object::Boolean(true),
-			Object::Boolean(value) => Object::Boolean(!value),
-			_ => Object::Boolean(false),
+			Expression::Function(ast::FunctionExpression { parameters, body, .. }) => {
+				Object::Function { parameters, body, env: Rc::clone(&self.env) }
+			}
+
+			Expression::Call(ast::CallExpression { identifier, arguments, .. }) => {
+				let function = self.eval_expression(*identifier);
+				if function.is_error() {
+					return function;
+				}
+
+				match self.eval_expressions(arguments) {
+					Ok(arguments) => self.apply_function(function, arguments),
+					Err(error) => error,
+				}
+			}
 		}
+	}
 
-		TokenType::Minus => match right {
-			Object::Integer(value) => Object::Integer(-value),
+	fn eval_block_statement(&mut self, block_statement: ast::BlockStatement) -> Object {
+		let mut result: Object = Object::Null;
+	
+		for statement in block_statement.statements {
+			result = self.eval_statement(statement);
+	
+			match result {
+				Object::ReturnValue(_) | Object::Error(_) => return result,
+				_ => {}
+			}
+		}
+	
+		return result;
+	}
+
+	fn eval_expression_prefix(&self, operator: TokenType, right: Object) -> Object {
+		match operator {
+			TokenType::Bang => match right {
+				Object::Null => Object::Boolean(true),
+				Object::Boolean(value) => Object::Boolean(!value),
+				_ => Object::Boolean(false),
+			}
+	
+			TokenType::Minus => match right {
+				Object::Integer(value) => Object::Integer(-value),
+				_ => Object::Error(format!("unknown operator: {}{}", operator.inspect(), right.inspect_type())),
+			}
+	
+	
 			_ => Object::Error(format!("unknown operator: {}{}", operator.inspect(), right.inspect_type())),
 		}
-
-
-		_ => Object::Error(format!("unknown operator: {}{}", operator.inspect(), right.inspect_type())),
 	}
-}
 
-fn eval_expression_infix(operator: TokenType, left: Object, right: Object) -> Object {
-	match (left, right) {
-		(Object::Integer(left), Object::Integer(right)) =>
-			eval_expression_infix_integer(operator, left, right),
-
-		(left, right) => {
-			match operator {
-				TokenType::Equal => Object::Boolean(left == right),
-				TokenType::NotEqual => Object::Boolean(left != right),
-
-				_ => {
-					if std::mem::discriminant(&left) != std::mem::discriminant(&right) {
+	fn eval_expression_infix(&self, operator: TokenType, left: Object, right: Object) -> Object {
+		match (left, right) {
+			(Object::Integer(left), Object::Integer(right)) =>
+				self.eval_expression_infix_integer(operator, left, right),
+	
+			(Object::Function { .. }, _) | (_, Object::Function { .. }) => Object::Boolean(false),
+	
+			(left, right) => {
+				match operator {
+					TokenType::Equal => Object::Boolean(left == right),
+					TokenType::NotEqual => Object::Boolean(left != right),
+	
+					_ => {
+						if std::mem::discriminant(&left) != std::mem::discriminant(&right) {
+							return Object::Error(
+								format!("type mismatch: {} {} {}", left.inspect_type(), operator.inspect(), right.inspect_type())
+							);
+	
+						}
+	
 						return Object::Error(
-							format!("type mismatch: {} {} {}", left.inspect_type(), operator.inspect(), right.inspect_type())
+							format!("unknown operator: {} {} {}", left.inspect_type(), operator.inspect(), right.inspect_type())
 						);
-
 					}
-
-					return Object::Error(
-						format!("unknown operator: {} {} {}", left.inspect_type(), operator.inspect(), right.inspect_type())
-					);
 				}
+	
 			}
-
 		}
 	}
 
-}
+	fn eval_expression_infix_integer(&self, operator: TokenType, left: i64, right: i64) -> Object {
+		match operator {
+			// arithmetic
+			TokenType::Plus => Object::Integer(left + right),
+			TokenType::Minus => Object::Integer(left - right),
+			TokenType::Asterisk => Object::Integer(left * right),
+			TokenType::Slash => Object::Integer(left / right),
+	
+			// comparison
+			TokenType::Equal => Object::Boolean(left == right),
+			TokenType::NotEqual => Object::Boolean(left != right),
+			TokenType::LowerThan => Object::Boolean(left < right),
+			TokenType::GreaterThan => Object::Boolean(left > right),
+	
+			_ => Object::Error(
+				format!("unknown operator: INTEGER {:?} INTEGER", operator.inspect())
+			),
+		}
+	}
 
-fn eval_expression_infix_integer(operator: TokenType, left: i64, right: i64) -> Object {
-	match operator {
-		// arithmetic
-		TokenType::Plus => Object::Integer(left + right),
-		TokenType::Minus => Object::Integer(left - right),
-		TokenType::Asterisk => Object::Integer(left * right),
-		TokenType::Slash => Object::Integer(left / right),
+	fn eval_expressions(&mut self, expressions: Vec<Expression>) -> Result<Vec<Object>, Object> {
+		let mut result = vec![];
 
-		// comparison
-		TokenType::Equal => Object::Boolean(left == right),
-		TokenType::NotEqual => Object::Boolean(left != right),
-		TokenType::LowerThan => Object::Boolean(left < right),
-		TokenType::GreaterThan => Object::Boolean(left > right),
+		for expression in expressions {
+			let evaluated = self.eval_expression(expression);
+			if evaluated.is_error() {
+				return Err(evaluated);
+			}
 
-		_ => Object::Error(
-			format!("unknown operator: INTEGER {:?} INTEGER", operator.inspect())
-		),
+			result.push(evaluated);
+		}
+
+		return Ok(result);
+	}
+
+	fn apply_function(&mut self, value: Object, args: Vec<Object>) -> Object {
+		match value {
+			Object::Function { env, parameters, body } => {
+				let mut call_env = Environment::new_enclosed(&env);
+
+				for (param, arg) in parameters.into_iter().zip(args.into_iter()) {
+					call_env.set(param.value, arg);
+				}
+
+				let current_env = Rc::clone(&self.env);
+
+				self.env = Rc::new(RefCell::new(call_env));
+				let result = self.eval_block_statement(body);
+
+				self.env = current_env;
+
+				result.unwrap_return_value()
+			}
+
+			_ => Object::Error(format!("not a function: {}", value.inspect_type())),
+		} 
 	}
 }
+
 
 pub fn is_truthy(object: Object) -> bool {
 	match object {
@@ -197,18 +265,18 @@ pub fn is_error(object: Object) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{object::{Object, Environment}, lexer::Lexer, parser::Parser};
+    use crate::{object::Object, lexer::Lexer, parser::Parser};
 
-    use super::eval;
+    use super::Evaluator;
 
 	fn check_eval(input: &str) -> Object {
-		let mut env = Environment::default();
 		let mut lexer = Lexer::new(input);
 		let mut parser = Parser::new(&mut lexer);
 
 		let program = parser.parse_program();
+		let mut evaluator = Evaluator::new();
 
-		return eval(program, &mut env);
+		return evaluator.eval(program);
 	}
 
 	#[test]
@@ -383,5 +451,63 @@ mod tests {
 			let evaluated = check_eval(input);
 			assert_eq!(evaluated, Object::Integer(expected_value));
 		}
+	}
+
+	#[test]
+	fn test_eval_function() {
+		let input = "fn(x) { x + 2; };";
+
+		let evaluated = check_eval(input);
+
+		match evaluated {
+			Object::Function { parameters, body, .. } => {
+				if parameters.len() != 1 {
+					panic!("function has wrong parameters. Paramaters={}", parameters.len());
+				}
+
+				if parameters[0].value != "x" {
+					panic!("parameter is not 'x'. got={:?}", parameters[0].value);
+				}
+
+				let body_str = body.to_string();
+				let expected_body = "(x + 2)";
+
+				if body_str != expected_body {
+					panic!("body is not \"{}\". got={}", expected_body, body_str);
+				}
+			}
+
+			_ => panic!("object is not a function. got={:?}", evaluated),
+		}
+	}
+
+	#[test]
+	fn test_function_application() {
+		let tests = vec![
+			("let identity = fn(x) { x; }; identity(5);", 5),
+			("let identity = fn(x) { return x; }; identity(5);", 5),
+			("let double = fn(x) { x * 2; }; double(5);", 10),
+			("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+			("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+			("fn(x) { x; }(5)", 5),
+		];
+
+		for (input, expected_value) in tests {
+			assert_eq!(check_eval(input), Object::Integer(expected_value));
+		}
+	}
+
+	#[test]
+	fn test_closures() {
+		let input = "
+			let newAdder = fn(x) {
+				fn(y) { x + y; };
+			}
+
+			let addTwo = newAdder(2);
+			addTwo(2);
+		";
+
+		assert_eq!(check_eval(input), Object::Integer(4));
 	}
 }

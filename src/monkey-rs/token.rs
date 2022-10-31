@@ -18,7 +18,9 @@ pub enum TokenType {
 	Slash,
 
 	LowerThan,
+	LowerThanOrEqual,
 	GreaterThan,
+	GreaterThanOrEqual,
 
 
 	// Delimiters
@@ -59,7 +61,9 @@ impl TokenType {
 			TokenType::Slash => "/",
 
 			TokenType::LowerThan => "<",
+			TokenType::LowerThanOrEqual => "<=",
 			TokenType::GreaterThan => ">",
+			TokenType::GreaterThanOrEqual => ">=",
 
 			TokenType::Comma => ",",
 			TokenType::Semicolon => ";",
