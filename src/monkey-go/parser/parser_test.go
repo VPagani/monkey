@@ -193,6 +193,21 @@ func testIntegerLiteral(t *testing.T, exp ast.Expression, value int64) bool {
 	return true
 }
 
+func testStringLiteral(t *testing.T, exp ast.Expression, value string) bool {
+	literal, ok := exp.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("exp not *ast.StringLiteral. got=%T", literal)
+		return false
+	}
+
+	if literal.Value != value {
+		t.Errorf("literal.Value not %q. got=%q", value, literal.Value)
+		return false
+	}
+
+	return true
+}
+
 func testLiteralExpression(t *testing.T, exp ast.Expression, expected interface{}) bool {
 	switch v := expected.(type) {
 	case bool:
@@ -263,6 +278,14 @@ func TestIntegerLiteralExpression(t *testing.T) {
 	expression := testParseExpression(t, input)
 
 	testLiteralExpression(t, expression, 5)
+}
+
+func TestStringLiteralExpression(t *testing.T) {
+	input := `"hello world"`
+
+	expression := testParseExpression(t, input)
+
+	testStringLiteral(t, expression, "hello world")
 }
 
 func TestParsingPrefixExpressions(t *testing.T) {
