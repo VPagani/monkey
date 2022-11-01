@@ -196,7 +196,7 @@ func testIntegerLiteral(t *testing.T, exp ast.Expression, value int64) bool {
 func testStringLiteral(t *testing.T, exp ast.Expression, value string) bool {
 	literal, ok := exp.(*ast.StringLiteral)
 	if !ok {
-		t.Fatalf("exp not *ast.StringLiteral. got=%T", literal)
+		t.Fatalf("exp is not *ast.StringLiteral. got=%T", literal)
 		return false
 	}
 
@@ -206,6 +206,21 @@ func testStringLiteral(t *testing.T, exp ast.Expression, value string) bool {
 	}
 
 	return true
+}
+
+func testArrayLiteral(t *testing.T, exp ast.Expression, length int) *ast.ArrayLiteral {
+	array, ok := exp.(*ast.ArrayLiteral)
+	if !ok {
+		t.Fatalf("exp is not *ast.ArrayLiteral. got=%T", array)
+		return nil
+	}
+
+	if len(array.Elements) != length {
+		t.Errorf("array length is not %d. got=%d", len(array.Elements), length)
+		return nil
+	}
+
+	return array
 }
 
 func testLiteralExpression(t *testing.T, exp ast.Expression, expected interface{}) bool {
@@ -248,7 +263,7 @@ func testInfixExpression(t *testing.T, exp ast.Expression, left interface{}, ope
 	return true
 }
 
-func TestIdentifier(t *testing.T) {
+func TestParsingIdentifier(t *testing.T) {
 	input := "foobar;"
 
 	expression := testParseExpression(t, input)
@@ -256,7 +271,7 @@ func TestIdentifier(t *testing.T) {
 	testIdentifier(t, expression, "foobar")
 }
 
-func TestBooleanLiteralExpression(t *testing.T) {
+func TestParsingBooleanLiteralExpression(t *testing.T) {
 	tests := []struct {
 		input string
 		value bool
@@ -272,7 +287,7 @@ func TestBooleanLiteralExpression(t *testing.T) {
 	}
 }
 
-func TestIntegerLiteralExpression(t *testing.T) {
+func TestParsingIntegerLiteralExpression(t *testing.T) {
 	input := "5;"
 
 	expression := testParseExpression(t, input)
@@ -280,12 +295,24 @@ func TestIntegerLiteralExpression(t *testing.T) {
 	testLiteralExpression(t, expression, 5)
 }
 
-func TestStringLiteralExpression(t *testing.T) {
+func TestParsingStringLiteralExpression(t *testing.T) {
 	input := `"hello world"`
 
 	expression := testParseExpression(t, input)
 
 	testStringLiteral(t, expression, "hello world")
+}
+
+func TestParsingArrayLiteralExpression(t *testing.T) {
+	input := "[1, 2 * 5, 3 + 7]"
+
+	expression := testParseExpression(t, input)
+
+	array := testArrayLiteral(t, expression, 3)
+
+	testIntegerLiteral(t, array.Elements[0], 1)
+	testInfixExpression(t, array.Elements[1], 2, "*", 5)
+	testInfixExpression(t, array.Elements[2], 3, "+", 7)
 }
 
 func TestParsingPrefixExpressions(t *testing.T) {
@@ -343,7 +370,7 @@ func TestParsingInfixExpressions(t *testing.T) {
 	}
 }
 
-func TestOperatorPrecedenceParsing(t *testing.T) {
+func TestParsingOperatorPrecedence(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -444,6 +471,14 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 			"add(a + b + c * d / f + g)",
 			"add((((a + b) + ((c * d) / f)) + g))",
 		},
+		{
+			"a * [1, 2, 3, 4][b * c] * d",
+			"((a * ([1, 2, 3, 4][(b * c)])) * d)",
+		},
+		{
+			"add(a * b[2], b[1], 2 * [1, 2][1])",
+			"add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+		},
 	}
 
 	for _, tt := range tests {
@@ -456,7 +491,7 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 	}
 }
 
-func TestIfExpression(t *testing.T) {
+func TestParsingIfExpression(t *testing.T) {
 	input := "if (x < y) { x }"
 
 	expression := testParseExpression(t, input)
@@ -489,7 +524,7 @@ func TestIfExpression(t *testing.T) {
 	}
 }
 
-func TestIfElseExpression(t *testing.T) {
+func TestParsingIfElseExpression(t *testing.T) {
 	input := "if (x == y) { x } else { y }"
 
 	expression := testParseExpression(t, input)
@@ -527,7 +562,7 @@ func TestIfElseExpression(t *testing.T) {
 	}
 }
 
-func TestFunctionLiteralParsing(t *testing.T) {
+func TestParsingFunctionLiteral(t *testing.T) {
 	input := "fn(x, y) { x + y; }"
 
 	expression := testParseExpression(t, input)
@@ -558,7 +593,7 @@ func TestFunctionLiteralParsing(t *testing.T) {
 	testInfixExpression(t, bodyStmt.Expression, "x", "+", "y")
 }
 
-func TestFunctionParameterParsing(t *testing.T) {
+func TestParsingFunctionParameter(t *testing.T) {
 	tests := []struct {
 		input          string
 		expectedParams []string
@@ -583,7 +618,7 @@ func TestFunctionParameterParsing(t *testing.T) {
 	}
 }
 
-func TestCallExpressionParsing(t *testing.T) {
+func TestParsingCallExpression(t *testing.T) {
 	input := "add(1, 2* 3, 4 +5);"
 
 	expression := testParseExpression(t, input)
@@ -605,4 +640,23 @@ func TestCallExpressionParsing(t *testing.T) {
 	testLiteralExpression(t, callExp.Arguments[0], 1)
 	testInfixExpression(t, callExp.Arguments[1], 2, "*", 3)
 	testInfixExpression(t, callExp.Arguments[2], 4, "+", 5)
+}
+
+func TestParsingIndexExpression(t *testing.T) {
+	input := "myArray[1 + 1]"
+
+	expression := testParseExpression(t, input)
+
+	indexExp, ok := expression.(*ast.IndexExpression)
+	if !ok {
+		t.Fatalf("exp is not *ast.IndexExpression. got=%T", expression)
+	}
+
+	if !testIdentifier(t, indexExp.Left, "myArray") {
+		return
+	}
+
+	if !testInfixExpression(t, indexExp.Index, 1, "+", 1) {
+		return
+	}
 }
