@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{ast, ast::{Statement, Expression}, object::{Object, Environment}, token::TokenType};
+use crate::{ast, ast::{Statement, Expression}, object::{Object, Environment, BuiltinFunction}, token::TokenType};
 
 pub struct Evaluator {
 	env: Rc<RefCell<Environment>>
@@ -67,7 +67,9 @@ impl Evaluator {
 			Expression::StringLiteral(ast::StringLiteralExpression { value, .. }) => Object::String(value),
 			
 			Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
-				self.env.borrow().get(&name).unwrap_or(
+				self.env.borrow().get(&name)
+				.or_else(|| Object::builtin_function(&name))
+				.unwrap_or(
 					Object::Error(format!("identifier not found: {}", name))
 				)
 			}
@@ -245,8 +247,29 @@ impl Evaluator {
 				result.unwrap_return_value()
 			}
 
+			Object::Builtin(builtin) => {
+				self.apply_builtin_function(builtin, args)
+			}
+
 			_ => Object::Error(format!("not a function: {}", value.inspect_type())),
 		} 
+	}
+
+	fn apply_builtin_function(&mut self, builtin: BuiltinFunction, args: Vec<Object>) -> Object {
+		match builtin {
+			BuiltinFunction::Len => {
+				match &args[..] {
+					[arg0] => {
+						match arg0 {
+							Object::String(value) => Object::Integer(value.len() as i64),
+							_ => Object::Error(format!("argument to 'len' not supported, got {}", arg0.inspect_type()))
+						}
+					}
+
+					_ => Object::Error(format!("wrong number of arguments. got={}, want=1", args.len()))
+				}
+			}
+		}
 	}
 }
 
@@ -528,5 +551,20 @@ mod tests {
 		";
 
 		assert_eq!(check_eval(input), Object::Integer(4));
+	}
+
+	#[test]
+	fn test_builtin_functions() {
+		let tests = vec![
+			("len(\"\")", Object::Integer(0)),
+			("len(\"four\")", Object::Integer(4)),
+			("len(\"hello world\")", Object::Integer(11)),
+			("len(1)", Object::Error("argument to 'len' not supported, got INTEGER".to_string())),
+			("len(\"one\", \"two\")", Object::Error("wrong number of arguments. got=2, want=1".to_string())),
+		];
+
+		for (input, expected_value) in tests {
+			assert_eq!(check_eval(input), expected_value)
+		}
 	}
 }

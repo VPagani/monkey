@@ -14,6 +14,7 @@ pub enum Object {
 		body: ast::BlockStatement,
 		env: Rc<RefCell<Environment>>
 	},
+	Builtin(BuiltinFunction),
 	Error(String),
 }
 
@@ -38,6 +39,7 @@ impl Object {
 
 				return out;
 			},
+			Object::Builtin(_) => "builtin function".to_string(),
 			Object::Error(message) => format!("ERROR: {}", message),
 		}
 	}
@@ -51,6 +53,7 @@ impl Object {
 			Object::String(_) => "STRING",
 			Object::ReturnValue(_) => "RETURN_VALUE",
 			Object::Function { .. } => "FUNCTION",
+			Object::Builtin(_) => "BUILTIN",
 			Object::Error(_) => "ERROR",
 		}
 	}
@@ -74,6 +77,26 @@ impl Object {
 		match self {
 			Object::ReturnValue(value) => *value,
 			_ => self,
+		}
+	}
+
+	pub fn builtin_function(identifier: &String) -> Option<Object> {
+		BuiltinFunction::from_identifier(identifier)
+			.map(|builtin| Object::Builtin(builtin))
+	}
+}
+
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BuiltinFunction {
+	Len,
+}
+
+impl BuiltinFunction {
+	pub fn from_identifier(identifier: &String) -> Option<BuiltinFunction> {
+		match identifier.as_str() {
+			"len" => Some(BuiltinFunction::Len),
+			_ => None,
 		}
 	}
 }
