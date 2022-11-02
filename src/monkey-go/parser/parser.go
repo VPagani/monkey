@@ -50,16 +50,18 @@ func New(l *lexer.Lexer) *Parser {
 	}
 
 	p.infixParseFns = map[token.TokenType]infixParseFn{
-		token.EQUAL:        p.parseInfixExpression,
-		token.NOT_EQUAL:    p.parseInfixExpression,
-		token.LOWER_THAN:   p.parseInfixExpression,
-		token.GREATER_THAN: p.parseInfixExpression,
-		token.PLUS:         p.parseInfixExpression,
-		token.MINUS:        p.parseInfixExpression,
-		token.SLASH:        p.parseInfixExpression,
-		token.ASTERISK:     p.parseInfixExpression,
-		token.LPAREN:       p.parseCallExpression,
-		token.LBRACKET:     p.parseIndexExpression,
+		token.EQUAL:                 p.parseInfixExpression,
+		token.NOT_EQUAL:             p.parseInfixExpression,
+		token.LOWER_THAN:            p.parseInfixExpression,
+		token.GREATER_THAN:          p.parseInfixExpression,
+		token.GREATER_THAN_OR_EQUAL: p.parseInfixExpression,
+		token.LOWER_THAN_OR_EQUAL:   p.parseInfixExpression,
+		token.PLUS:                  p.parseInfixExpression,
+		token.MINUS:                 p.parseInfixExpression,
+		token.SLASH:                 p.parseInfixExpression,
+		token.ASTERISK:              p.parseInfixExpression,
+		token.LPAREN:                p.parseCallExpression,
+		token.LBRACKET:              p.parseIndexExpression,
 	}
 
 	return p
@@ -323,16 +325,18 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 }
 
 var precedences = map[token.TokenType]Precedence{
-	token.EQUAL:        EQUALITY,
-	token.NOT_EQUAL:    EQUALITY,
-	token.LOWER_THAN:   COMPARISON,
-	token.GREATER_THAN: COMPARISON,
-	token.PLUS:         TERM,
-	token.MINUS:        TERM,
-	token.SLASH:        FACTOR,
-	token.ASTERISK:     FACTOR,
-	token.LPAREN:       CALL,
-	token.LBRACKET:     INDEX,
+	token.EQUAL:                 EQUALITY,
+	token.NOT_EQUAL:             EQUALITY,
+	token.LOWER_THAN:            COMPARISON,
+	token.GREATER_THAN:          COMPARISON,
+	token.LOWER_THAN_OR_EQUAL:   COMPARISON,
+	token.GREATER_THAN_OR_EQUAL: COMPARISON,
+	token.PLUS:                  TERM,
+	token.MINUS:                 TERM,
+	token.SLASH:                 FACTOR,
+	token.ASTERISK:              FACTOR,
+	token.LPAREN:                CALL,
+	token.LBRACKET:              INDEX,
 }
 
 func (p *Parser) peekPrecedence() Precedence {
