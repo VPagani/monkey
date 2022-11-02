@@ -243,6 +243,15 @@ impl<'a> Parser<'a> {
 				))
 			},
 
+			TokenType::String => {
+				Some(ast::Expression::StringLiteral(
+					ast::StringLiteralExpression {
+						value: operator.literal.clone(),
+						token: operator
+					}
+				))
+			}
+
 			TokenType::True | TokenType::False => {
 				Some(ast::Expression::BooleanLiteral(ast::BooleanLiteralExpression {
 					value: operator.ttype == TokenType::True,
@@ -605,16 +614,34 @@ mod tests {
 		match expression {
 			Expression::BooleanLiteral(ast::BooleanLiteralExpression { token, value: boolean_value, .. }) => {
 				if boolean_value != value {
-					panic!("integer is not '{}'. got={}", value, boolean_value);
+					panic!("boolean is not '{}'. got={}", value, boolean_value);
 				}
 
 				if token.literal != format!("{}", value) {
-					panic!("integer.token.literal is not '{}'. got={}", value, token.literal);
+					panic!("boolean.token.literal is not '{}'. got={}", value, token.literal);
 				}
 			},
 
 			_ => {
 				panic!("expression is not BooleanLiteral. got={:?}", expression);
+			}
+		}
+	}
+
+	fn check_string_literal(expression: Expression, value: String) {
+		match expression {
+			Expression::StringLiteral(ast::StringLiteralExpression { token, value: string_value, .. }) => {
+				if string_value != value {
+					panic!("string is not '{}'. got={}", value, string_value);
+				}
+
+				if token.literal != format!("{}", value) {
+					panic!("string.token.literal is not '{}'. got={}", value, token.literal);
+				}
+			},
+
+			_ => {
+				panic!("expression is not StringLiteral. got={:?}", expression);
 			}
 		}
 	}
@@ -680,6 +707,16 @@ mod tests {
 
 			check_boolean_literal(expression, expected_value);
 		}
+	}
+
+	#[test]
+	fn test_parsing_string_literal_expression() {
+		let input = "\"hello world\"";
+
+		let expression = parse_expression(input);
+
+
+		check_string_literal(expression, "hello world".to_string());
 	}
 
 	#[test]

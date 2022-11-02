@@ -64,7 +64,7 @@ impl Evaluator {
 		match expression {
 			Expression::BooleanLiteral(ast::BooleanLiteralExpression { value, .. }) => Object::Boolean(value),
 			Expression::IntegerLiteral(ast::IntegerLiteralExpression { value, .. }) => Object::Integer(value),
-	
+			Expression::StringLiteral(ast::StringLiteralExpression { value, .. }) => Object::String(value),
 			
 			Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
 				self.env.borrow().get(&name).unwrap_or(
@@ -164,6 +164,9 @@ impl Evaluator {
 				self.eval_expression_infix_integer(operator, left, right),
 	
 			(Object::Function { .. }, _) | (_, Object::Function { .. }) => Object::Boolean(false),
+
+			(Object::String(left), Object::String(right)) if operator == TokenType::Plus =>
+				Object::String(format!("{}{}", left, right)),
 	
 			(left, right) => {
 				match operator {
@@ -329,6 +332,22 @@ mod tests {
 			let evaluated = check_eval(input);
 			assert_eq!(evaluated, Object::Integer(expected_value));
 		}
+	}
+
+	#[test]
+	fn test_eval_string_expression() {
+		let input = "\"hello world\"";
+
+		let evaluated = check_eval(input);
+		assert_eq!(evaluated, Object::String("hello world".to_string()));
+	}
+
+	#[test]
+	fn test_string_concatenation() {
+		let input = "\"Hello\" + \" \" + \"World!\"";
+
+		let evaluated = check_eval(input);
+		assert_eq!(evaluated, Object::String("Hello World!".to_string()));
 	}
 
 	#[test]

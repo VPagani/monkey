@@ -7,6 +7,7 @@ pub enum Object {
 	Null,
 	Boolean(bool),
 	Integer(i64),
+	String(String),
 	ReturnValue(Box<Object>),
 	Function {
 		parameters: Vec<ast::IdentifierExpression>,
@@ -22,6 +23,7 @@ impl Object {
 			Object::Null => "null".to_string(),
 			Object::Boolean(value) => format!("{}", value),
 			Object::Integer(value) => format!("{}", value),
+			Object::String(value) => value.clone(),
 			Object::ReturnValue(object) => object.inspect(),
 			Object::Function { parameters, body, .. } => {
 				let mut out = String::new();
@@ -46,6 +48,7 @@ impl Object {
 			Object::Null => "NULL",
 			Object::Boolean(_) => "BOOLEAN",
 			Object::Integer(_) => "INTEGER",
+			Object::String(_) => "STRING",
 			Object::ReturnValue(_) => "RETURN_VALUE",
 			Object::Function { .. } => "FUNCTION",
 			Object::Error(_) => "ERROR",

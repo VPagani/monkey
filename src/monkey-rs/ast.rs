@@ -52,6 +52,7 @@ pub enum Expression {
 	Identifier(IdentifierExpression),
 	BooleanLiteral(BooleanLiteralExpression),
 	IntegerLiteral(IntegerLiteralExpression),
+	StringLiteral(StringLiteralExpression),
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
 	If(IfExpression),
@@ -110,6 +111,12 @@ pub struct CallExpression {
 	pub token: Token,
 	pub identifier: Box<Expression>,
 	pub arguments: Vec<Expression>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StringLiteralExpression {
+	pub token: Token,
+	pub value: String,
 }
 
 impl Program {
@@ -217,6 +224,7 @@ impl Node for Expression {
 			Identifier(IdentifierExpression { value, .. }) => value.as_str(),
 			BooleanLiteral(BooleanLiteralExpression { token, .. }) => token.literal.as_str(),
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.as_str(),
+			StringLiteral(StringLiteralExpression { token, .. }) => token.literal.as_str(),
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
 			If(IfExpression { token, .. }) => token.literal.as_str(),
@@ -232,6 +240,7 @@ impl Node for Expression {
 			Identifier(IdentifierExpression { value, .. }) => value.clone(),
 			BooleanLiteral(BooleanLiteralExpression { token, .. }) => token.literal.clone(),
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.clone(),
+			StringLiteral(StringLiteralExpression { value, .. }) => value.clone(),
 			Prefix(PrefixExpression { operator, right }) => format!("({}{})", operator.literal, right.to_string()),
 			Infix(InfixExpression { left, operator, right }) => format!("({} {} {})", left.to_string(), operator.literal, right.to_string()),
 

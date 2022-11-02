@@ -40,6 +40,8 @@ pub enum TokenType {
 	If,
 	Else,
 	Return,
+
+	String,
 }
 
 impl TokenType {
@@ -80,6 +82,8 @@ impl TokenType {
 			TokenType::If => "IF",
 			TokenType::Else => "ELSE",
 			TokenType::Return => "RETURN",
+
+			TokenType::String => "STRING",
 		}
 	}
 }

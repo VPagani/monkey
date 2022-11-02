@@ -93,6 +93,8 @@ impl<'a> Lexer<'a> {
 			'{' => token = Token::char(LBrace, self.current_char),
 			'}' => token = Token::char(RBrace, self.current_char),
 
+			'"' => token = Token::str(String, self.read_string()),
+
 			'\0' => {
 				token = Token {
 					ttype: EOF,
@@ -101,15 +103,9 @@ impl<'a> Lexer<'a> {
 			},
 
 			_ => if is_letter(self.current_char) {
-				let literal =  self.read_identifier();
-				token = Token::from_identifier(literal);
-				return token;
+				return Token::from_identifier(self.read_identifier());
 			} else if is_digit(self.current_char) {
-				token = Token {
-					ttype: Int,
-					literal: self.read_number().to_string(),
-				};
-				return token;
+				return Token::str(Int, self.read_number());
 			} else {
 				token = Token::char(Illegal, self.current_char);
 			},
@@ -120,7 +116,7 @@ impl<'a> Lexer<'a> {
 		return token;
 	}
 
-	fn read_number(self: &mut Self) -> &str {
+	fn read_number(&mut self) -> &str {
 		let position = self.position;
 
 		while is_digit(self.current_char) {
@@ -129,6 +125,20 @@ impl<'a> Lexer<'a> {
 
 		return &self.input[position..self.position];
 
+	}
+
+	fn read_string(&mut self) -> &str {
+		let position = self.position + 1;
+
+		loop {
+			self.read_char();
+
+			if self.current_char == '"' || self.current_char == '\0' {
+				break
+			}
+		}
+		
+		return &self.input[position..self.position];
 	}
 
 	fn read_identifier(self: &mut Self) -> &str {
@@ -141,7 +151,7 @@ impl<'a> Lexer<'a> {
 		return &self.input[position..self.position];
 	}
 
-	fn skip_whitespace(self: &mut Self) {
+	fn skip_whitespace(&mut self) {
 		while is_whitespace(self.current_char) {
 			self.read_char();
 		}
@@ -178,6 +188,8 @@ mod tests {
 	
 		10 == 10;
 		10 != 9;
+		\"foobar\"
+		\"foo bar\"
 		";
 
 		let tests: Vec<(TokenType, &str)> = vec![
@@ -267,6 +279,9 @@ mod tests {
 			(NotEqual, "!="),
 			(Int, "9"),
 			(Semicolon, ";"),
+
+			(String, "foobar"),
+			(String, "foo bar"),
 	
 			(EOF, ""),
 		];
