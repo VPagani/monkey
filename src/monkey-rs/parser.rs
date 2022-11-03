@@ -73,7 +73,8 @@ impl<'a> Parser<'a> {
 	fn get_infix_precedence(&self, ttype: TokenType) -> Precedence {
 		match ttype {
 			TokenType::Equal | TokenType::NotEqual => Precedence::Equality,
-			TokenType::GreaterThan | TokenType::LowerThan => Precedence::Comparison,
+			TokenType::GreaterThan | TokenType::LowerThan |
+			TokenType::GreaterThanOrEqual | TokenType::LowerThanOrEqual => Precedence::Comparison,
 			TokenType::Plus | TokenType::Minus => Precedence::Term,
 			TokenType::Asterisk | TokenType::Slash => Precedence::Factor,
 			TokenType::LParen => Precedence::Call,
@@ -402,6 +403,8 @@ impl<'a> Parser<'a> {
 			TokenType::NotEqual |
 			TokenType::GreaterThan |
 			TokenType::LowerThan |
+			TokenType::GreaterThanOrEqual |
+			TokenType::LowerThanOrEqual |
 			TokenType::Plus |
 			TokenType::Minus |
 			TokenType::Asterisk |

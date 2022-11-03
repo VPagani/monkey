@@ -275,6 +275,8 @@ impl Evaluator {
 			TokenType::NotEqual => Object::Boolean(left != right),
 			TokenType::LowerThan => Object::Boolean(left < right),
 			TokenType::GreaterThan => Object::Boolean(left > right),
+			TokenType::LowerThanOrEqual => Object::Boolean(left <= right),
+			TokenType::GreaterThanOrEqual => Object::Boolean(left >= right),
 	
 			_ => Object::Error(
 				format!("unknown operator: INTEGER {:?} INTEGER", operator.inspect())

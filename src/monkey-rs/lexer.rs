@@ -82,8 +82,22 @@ impl<'a> Lexer<'a> {
 			}
 			'*' => token = Token::char(Asterisk, self.current_char),
 			'/' => token = Token::char(Slash, self.current_char),
-			'<' => token = Token::char(LowerThan, self.current_char),
-			'>' => token = Token::char(GreaterThan, self.current_char),
+			'<' => if self.peek_char() == '=' {
+				let ch = self.current_char;
+				self.read_char();
+				let literal = format!("{}{}", ch, self.current_char);
+				token = Token::string(LowerThanOrEqual, literal);
+			} else {
+				token = Token::char(LowerThan, self.current_char);
+			}
+			'>' => if self.peek_char() == '=' {
+				let ch = self.current_char;
+				self.read_char();
+				let literal = format!("{}{}", ch, self.current_char);
+				token = Token::string(GreaterThanOrEqual, literal);
+			} else {
+				token = Token::char(GreaterThan, self.current_char);
+			}
 
 			// Delimiters
 			',' => token = Token::char(Comma, self.current_char),
@@ -181,6 +195,7 @@ mod tests {
 		let result = add(five, ten);
 		!-/*5;
 		5 < 10 > 5;
+		8 <= 9 >= 3;
 	
 		if (5 < 10) {
 			return true;
@@ -249,6 +264,13 @@ mod tests {
 			(Int, "10"),
 			(GreaterThan, ">"),
 			(Int, "5"),
+			(Semicolon, ";"),
+
+			(Int, "8"),
+			(LowerThanOrEqual, "<="),
+			(Int, "9"),
+			(GreaterThanOrEqual, ">="),
+			(Int, "3"),
 			(Semicolon, ";"),
 	
 			(If, "if"),
