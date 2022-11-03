@@ -324,19 +324,90 @@ impl Evaluator {
 		} 
 	}
 
-	fn apply_builtin_function(&mut self, builtin: BuiltinFunction, args: Vec<Object>) -> Object {
+	fn apply_builtin_function(&mut self, builtin: BuiltinFunction, mut args: Vec<Object>) -> Object {
 		match builtin {
 			BuiltinFunction::Len => {
 				match &args[..] {
 					[arg0] => {
 						match arg0 {
 							Object::String(value) => Object::Integer(value.len() as i64),
+							Object::Array(array) => Object::Integer(array.len() as i64),
 							_ => Object::Error(format!("argument to 'len' not supported, got {}", arg0.inspect_type()))
 						}
 					}
 
 					_ => Object::Error(format!("wrong number of arguments. got={}, want=1", args.len()))
 				}
+			}
+
+			BuiltinFunction::First => {
+				match &args[..] {
+					[arg0] => {
+						match arg0 {
+							Object::Array(array) => array.first().map(|value| value.clone()).unwrap_or(Object::Null),
+							_ => Object::Error(format!("argument to `first` must be ARRAY, got {}", arg0.inspect_type())),
+						}
+					}
+
+					_ => Object::Error(format!("wrong number of arguments. got={}, want=1", args.len()))
+				}
+			}
+
+			BuiltinFunction::Last => {
+				match &args[..] {
+					[arg0] => {
+						match arg0 {
+							Object::Array(array) => array.last().map(|value| value.clone()).unwrap_or(Object::Null),
+							_ => Object::Error(format!("argument to `last` must be ARRAY, got {}", arg0.inspect_type())),
+						}
+					}
+
+					_ => Object::Error(format!("wrong number of arguments. got={}, want=1", args.len()))
+				}
+			}
+
+			BuiltinFunction::Rest => {
+				match &args[..] {
+					[arg0] => {
+						match arg0 {
+							Object::Array(array) => Object::Array(Vec::from_iter(array[1..].iter().cloned())),
+							_ => Object::Error(format!("argument to `rest` must be ARRAY, got {}", arg0.inspect_type())),
+						}
+					}
+
+					_ => Object::Error(format!("wrong number of arguments. got={}, want=1", args.len()))
+				}
+			}
+
+			BuiltinFunction::Push => {
+				match &mut args[..] {
+					[arg0, arg1] => {
+						match arg0 {
+							Object::Array(array) => {
+								let mut array = array.clone();
+								array.push(arg1.clone());
+								return Object::Array(array);
+							}
+							_ => Object::Error(format!("argument to `rest` must be ARRAY, got {}", arg0.inspect_type())),
+						}
+					}
+
+					_ => Object::Error(format!("wrong number of arguments. got={}, want=1", args.len()))
+				}
+			}
+
+			BuiltinFunction::Puts => {
+				for (i, arg) in args.iter().enumerate() {
+					if i != 0 {
+						print!(" ");
+					}
+
+					print!("{}", arg.inspect());
+				}
+
+				println!("");
+
+				return Object::Null;
 			}
 		}
 	}

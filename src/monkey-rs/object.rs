@@ -170,12 +170,22 @@ impl PartialEq for Object {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BuiltinFunction {
 	Len,
+	First,
+	Last,
+	Rest,
+	Push,
+	Puts,
 }
 
 impl BuiltinFunction {
 	pub fn from_identifier(identifier: &String) -> Option<BuiltinFunction> {
 		match identifier.as_str() {
 			"len" => Some(BuiltinFunction::Len),
+			"first" => Some(BuiltinFunction::First),
+			"last" => Some(BuiltinFunction::Last),
+			"rest" => Some(BuiltinFunction::Rest),
+			"push" => Some(BuiltinFunction::Push),
+			"puts" => Some(BuiltinFunction::Puts),
 			_ => None,
 		}
 	}
