@@ -53,11 +53,13 @@ pub enum Expression {
 	BooleanLiteral(BooleanLiteralExpression),
 	IntegerLiteral(IntegerLiteralExpression),
 	StringLiteral(StringLiteralExpression),
+	ArrayLiteral(ArrayLiteralExpression),
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
 	If(IfExpression),
 	Function(FunctionExpression),
 	Call(CallExpression),
+	Index(IndexExpression),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +78,18 @@ pub struct BooleanLiteralExpression {
 pub struct IntegerLiteralExpression {
 	pub token: Token,
 	pub value: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StringLiteralExpression {
+	pub token: Token,
+	pub value: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ArrayLiteralExpression {
+	pub token: Token,
+	pub elements: Vec<Expression>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,9 +128,10 @@ pub struct CallExpression {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct StringLiteralExpression {
+pub struct IndexExpression {
 	pub token: Token,
-	pub value: String,
+	pub left: Box<Expression>,
+	pub index: Box<Expression>,
 }
 
 impl Program {
@@ -225,11 +240,13 @@ impl Node for Expression {
 			BooleanLiteral(BooleanLiteralExpression { token, .. }) => token.literal.as_str(),
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.as_str(),
 			StringLiteral(StringLiteralExpression { token, .. }) => token.literal.as_str(),
+			ArrayLiteral(ArrayLiteralExpression { token, .. }) => token.literal.as_str(),
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
 			If(IfExpression { token, .. }) => token.literal.as_str(),
 			Function(FunctionExpression { token, .. }) => token.literal.as_str(),
 			Call(CallExpression { token, .. }) => token.literal.as_str(),
+			Index(IndexExpression { token, .. }) => token.literal.as_str(),
 		}
 	}
 
@@ -241,6 +258,18 @@ impl Node for Expression {
 			BooleanLiteral(BooleanLiteralExpression { token, .. }) => token.literal.clone(),
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.clone(),
 			StringLiteral(StringLiteralExpression { value, .. }) => value.clone(),
+			ArrayLiteral(ArrayLiteralExpression { elements, .. }) => {
+				let mut out = String::new();
+
+				out += "[";
+				out += elements.iter()
+					.map(|el| el.to_string())
+					.collect::<Vec<String>>().join(", ").as_str();
+				out += "]";
+
+				return out;
+			}
+
 			Prefix(PrefixExpression { operator, right }) => format!("({}{})", operator.literal, right.to_string()),
 			Infix(InfixExpression { left, operator, right }) => format!("({} {} {})", left.to_string(), operator.literal, right.to_string()),
 
@@ -281,6 +310,18 @@ impl Node for Expression {
 				out += "(";
 				out += arguments.iter().map(|arg| arg.to_string()).collect::<Vec<String>>().join(", ").as_str();
 				out += ")";
+
+				return out;
+			}
+
+			Index(IndexExpression { left, index, ..}) => {
+				let mut out = String::new();
+
+				out += "(";
+				out += left.to_string().as_str();
+				out += "[";
+				out += index.to_string().as_str();
+				out += "])";
 
 				return out;
 			}

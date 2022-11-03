@@ -92,6 +92,8 @@ impl<'a> Lexer<'a> {
 			')' => token = Token::char(RParen, self.current_char),
 			'{' => token = Token::char(LBrace, self.current_char),
 			'}' => token = Token::char(RBrace, self.current_char),
+			'[' => token = Token::char(LBracket, self.current_char),
+			']' => token = Token::char(RBracket, self.current_char),
 
 			'"' => token = Token::str(String, self.read_string()),
 

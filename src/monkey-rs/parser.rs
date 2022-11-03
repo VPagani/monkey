@@ -18,6 +18,7 @@ enum Precedence {
 	Factor,
 	Prefix,
 	Call,
+	Index,
 }
 
 impl<'a> Parser<'a> {
@@ -76,6 +77,7 @@ impl<'a> Parser<'a> {
 			TokenType::Plus | TokenType::Minus => Precedence::Term,
 			TokenType::Asterisk | TokenType::Slash => Precedence::Factor,
 			TokenType::LParen => Precedence::Call,
+			TokenType::LBracket => Precedence::Index,
 			_ => Precedence::Lowest
 		}
 	}
@@ -282,6 +284,19 @@ impl<'a> Parser<'a> {
 				return expression;
 			}
 
+			TokenType::LBracket => {
+				self.next_token();
+				
+				let elements = self.parse_expression_list(TokenType::RBracket)?;
+
+				return Some(ast::Expression::ArrayLiteral(
+					ast::ArrayLiteralExpression {
+						token: operator,
+						elements,
+					}
+				))
+			}
+
 			TokenType::If => {
 				if !self.expect_peek(TokenType::LParen) {
 					return None;
@@ -379,7 +394,7 @@ impl<'a> Parser<'a> {
 			TokenType::LParen => {
 				self.next_token();
 
-				let arguments = match self.parse_call_arguments() {
+				let arguments = match self.parse_expression_list(TokenType::RParen) {
 					Some(arguments) => arguments,
 					None => return Err(left),
 				};
@@ -391,14 +406,35 @@ impl<'a> Parser<'a> {
 				}))
 			}
 
+			TokenType::LBracket => {
+				self.next_token();
+
+				let index = match self.parse_expression(Precedence::Lowest) {
+					Some(expression) => expression,
+					None => return Err(left),
+				};
+
+				if !self.expect_peek(TokenType::RBracket) {
+					return Err(left);
+				}
+
+				Ok(ast::Expression::Index(
+					ast::IndexExpression {
+						token: operator,
+						left: Box::new(left),
+						index: Box::new(index),
+					}
+				))
+			}
+
 			_ => Err(left),
 		}
 	}
 
-	fn parse_call_arguments(&mut self) -> Option<Vec<ast::Expression>> {
+	fn parse_expression_list(&mut self, end: TokenType) -> Option<Vec<ast::Expression>> {
 		let mut args = vec![];
 
-		if !self.current_token_is(TokenType::RParen) {
+		if !self.current_token_is(end) {
 			args.push(self.parse_expression(Precedence::Lowest)?);
 
 			while self.peek_token_is(TokenType::Comma) {
@@ -408,7 +444,7 @@ impl<'a> Parser<'a> {
 				args.push(self.parse_expression(Precedence::Lowest)?);
 			}
 
-			if !self.expect_peek(TokenType::RParen) {
+			if !self.expect_peek(end) {
 				return None;
 			}
 		}
@@ -720,6 +756,23 @@ mod tests {
 	}
 
 	#[test]
+	fn test_parsing_array_literal_expression() {
+		let input = "[1, 2 * 5, 3 + 7]";
+
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::ArrayLiteral(ast::ArrayLiteralExpression { mut elements, .. }) => {
+				check_integer_literal(elements.remove(0), 1);
+				check_infix_expression(elements.remove(0), LiteralValue::Integer(2), "*", LiteralValue::Integer(5));
+				check_infix_expression(elements.remove(0), LiteralValue::Integer(3), "+", LiteralValue::Integer(7));
+			}
+
+			_ => panic!("expression is not ArrayLiteral. got={:?}", expression),
+		}
+	}
+
+	#[test]
 	fn test_parsing_prefix_expression() {
 		let tests: Vec<(&str, &str, LiteralValue)> = vec![
 			("!5;", "!", LiteralValue::Integer(5)),
@@ -865,6 +918,14 @@ mod tests {
 				"add(a + b + c * d / f + g)",
 				"add((((a + b) + ((c * d) / f)) + g))",
 			),
+			(
+				"a * [1, 2, 3, 4][b * c] * d",
+				"((a * ([1, 2, 3, 4][(b * c)])) * d)",
+			),
+			(
+				"add(a * b[2], b[1], 2 * [1, 2][1])",
+				"add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+			),
 		];
 
 		for (input, expected_program) in tests {
@@ -968,7 +1029,7 @@ mod tests {
 					panic!("parameter[0] is not x. got={}", parameters[0].value);
 				}
 
-				if parameters[0].value != "y" {
+				if parameters[1].value != "y" {
 					panic!("parameter[1] is not y. got={}", parameters[1].value);
 				}
 
@@ -1020,4 +1081,21 @@ mod tests {
 			_ => panic!("expression is not CallExpression. got={:?}", expression),
 		}
 	}
+
+	#[test]
+	fn test_parsing_index_expression() {
+		let input = "myArray[1 + 1]";
+	
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::Index(ast::IndexExpression { left, index , .. }) => {
+				check_identifier(*left, "myArray");
+				check_infix_expression(*index, LiteralValue::Integer(1), "+", LiteralValue::Integer(1));
+			}
+
+			_ => panic!("expression is not IndexExpression. got={:?}", expression),
+		}
+	}
+	
 }

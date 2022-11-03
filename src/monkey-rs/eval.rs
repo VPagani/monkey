@@ -65,6 +65,14 @@ impl Evaluator {
 			Expression::BooleanLiteral(ast::BooleanLiteralExpression { value, .. }) => Object::Boolean(value),
 			Expression::IntegerLiteral(ast::IntegerLiteralExpression { value, .. }) => Object::Integer(value),
 			Expression::StringLiteral(ast::StringLiteralExpression { value, .. }) => Object::String(value),
+
+			Expression::ArrayLiteral(ast::ArrayLiteralExpression { elements, .. }) => {
+				let elements = self.eval_expressions(elements);
+				match elements {
+					Err(error) => error,
+					Ok(elements) => Object::Array(elements),
+				}
+			}
 			
 			Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
 				self.env.borrow().get(&name)
@@ -122,6 +130,28 @@ impl Evaluator {
 				match self.eval_expressions(arguments) {
 					Ok(arguments) => self.apply_function(function, arguments),
 					Err(error) => error,
+				}
+			}
+
+			Expression::Index(ast::IndexExpression { left, index, .. }) => {
+				let left = self.eval_expression(*left);
+				if left.is_error() {
+					return left;
+				}
+
+				let index = self.eval_expression(*index);
+				if index.is_error() {
+					return index;
+				}
+
+				match (left, index) {
+					(Object::Array(array), Object::Integer(index)) =>
+						array
+							.get(index as usize)
+							.map(|value| value.clone())
+							.unwrap_or(Object::Null),
+
+					(left, _) => Object::Error(format!("index operator not supported: {}", left.inspect_type())),
 				}
 			}
 		}
@@ -300,6 +330,12 @@ mod tests {
 		let mut parser = Parser::new(&mut lexer);
 
 		let program = parser.parse_program();
+		if parser.errors.len() > 0 {
+			for error in parser.errors {
+				panic!("{}", error);
+			}
+		}
+
 		let mut evaluator = Evaluator::new();
 
 		return evaluator.eval(program);
@@ -565,6 +601,77 @@ mod tests {
 
 		for (input, expected_value) in tests {
 			assert_eq!(check_eval(input), expected_value)
+		}
+	}
+
+	#[test]
+	fn test_eval_array_literals() {
+		let input = "[1, 2 * 4, 3 + 8]";
+
+		let evaluated = check_eval(input);
+
+		match evaluated {
+			Object::Array(elements) => {
+				if elements.len() != 3 {
+					panic!("array has wrong num of elements. got={}", elements.len());
+				}
+
+				assert_eq!(elements[0], Object::Integer(1));
+				assert_eq!(elements[1], Object::Integer(8));
+				assert_eq!(elements[2], Object::Integer(11));
+			}
+
+			_ => panic!("object is not Array. got={:?}", evaluated),
+		}
+	}
+
+	#[test]
+	fn test_eval_array_index_expressions() {
+		let tests = vec!(
+			(
+				"[1, 2, 3][0]",
+				Object::Integer(1),
+			),
+			(
+				"[1, 2, 3][1]",
+				Object::Integer(2),
+			),
+			(
+				"[1, 2, 3][2]",
+				Object::Integer(3),
+			),
+			(
+				"let i = 0; [1][i];",
+				Object::Integer(1),
+			),
+			(
+				"[1, 2, 3][1 + 1];",
+				Object::Integer(3),
+			),
+			(
+				"let myArray = [1, 2, 3]; myArray[2];",
+				Object::Integer(3),
+			),
+			(
+				"let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+				Object::Integer(6),
+			),
+			(
+				"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+				Object::Integer(2),
+			),
+			(
+				"[1, 2, 3][3]",
+				Object::Null,
+			),
+			(
+				"[1, 2, 3][-1]",
+				Object::Null,
+			),
+		);
+
+		for (input, expected_value) in tests {
+			assert_eq!(check_eval(input), expected_value);
 		}
 	}
 }

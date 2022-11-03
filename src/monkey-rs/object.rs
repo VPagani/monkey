@@ -2,12 +2,13 @@ use std::{collections::HashMap, cell::RefCell, rc::Rc};
 
 use crate::ast;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum Object {
 	Null,
 	Boolean(bool),
 	Integer(i64),
 	String(String),
+	Array(Vec<Object>),
 	ReturnValue(Box<Object>),
 	Function {
 		parameters: Vec<ast::IdentifierExpression>,
@@ -25,6 +26,18 @@ impl Object {
 			Object::Boolean(value) => format!("{}", value),
 			Object::Integer(value) => format!("{}", value),
 			Object::String(value) => value.clone(),
+			Object::Array(elements) => {
+				let mut out = String::new();
+
+				out += "[";
+				out += elements.iter()
+					.map(|el| el.inspect())
+					.collect::<Vec<String>>().join(", ").as_str();
+				out += "]";
+
+				return out;
+
+			}
 			Object::ReturnValue(object) => object.inspect(),
 			Object::Function { parameters, body, .. } => {
 				let mut out = String::new();
@@ -51,6 +64,7 @@ impl Object {
 			Object::Boolean(_) => "BOOLEAN",
 			Object::Integer(_) => "INTEGER",
 			Object::String(_) => "STRING",
+			Object::Array(_) => "ARRAY",
 			Object::ReturnValue(_) => "RETURN_VALUE",
 			Object::Function { .. } => "FUNCTION",
 			Object::Builtin(_) => "BUILTIN",
@@ -86,6 +100,22 @@ impl Object {
 	}
 }
 
+impl Eq for Object {}
+
+impl PartialEq for Object {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(Object::Null, Object::Null) => true,
+			(Object::Boolean(value1), Object::Boolean(value2)) => value1 == value2,
+			(Object::Integer(value1), Object::Integer(value2)) => value1 == value2,
+			(Object::String(value1), Object::String(value2)) => value1 == value2,
+			(Object::Builtin(value1), Object::Builtin(value2)) => value1 == value2,
+			(Object::Error(message1), Object::Error(message2)) => message1 == message2,
+			_ => false,
+		}
+	}
+}
+
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BuiltinFunction {
@@ -101,7 +131,7 @@ impl BuiltinFunction {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct Environment {
 	store: HashMap<String, Object>,
 	outer: Option<Rc<RefCell<Environment>>>,
