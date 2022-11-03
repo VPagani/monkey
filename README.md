@@ -28,39 +28,39 @@ puts(4 + a + b);
 ### Data types
 ```monkey
 
-let string = "this is a string";
-puts(len(string));
+let str = "this is a string";
+puts(len(str));
 //> "16"
 
-let array = ["this", "is", "an", "array", 1, true];
+let arr = ["this", "is", "an", "array", 1, true];
 puts(len(arr));
 //> "6"
 
-let hashmap = { "this": "is", "a": "hashmap", true: false, 1: 101 };
-puts(hashmap["this"] + hashmap["a"])
-//> "ishashmap"
+let hsh = { "this": "is", "a": "hash", true: false, 1: 101 };
+puts(hsh["this"] + hsh["a"])
+//> "ishash"
 ```
 
 ### Functions
 
 ```monkey
 let factorial = fn(n) {
-    if (n <= 1) {
-		return 1;
-	}
+  if (n <= 1) {
+    return 1;
+  }
 
-    return n * factorial(n - 1);
+  return n * factorial(n - 1);
 }
 
 puts(factorial(8));
 //> "40320"
 
 let fibonacci = fn(n) {
-	if (n <= 1) {
-		return 1;
-	}
+  if (n <= 1) {
+    return 1;
+  }
 
-	return fibonacci(n - 2) + fibonacci(n -1);
+  return fibonacci(n - 2) + fibonacci(n -1);
 }
 
 puts(fibonacci(25))
