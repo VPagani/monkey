@@ -1,0 +1,88 @@
+# Monkey Programming Language
+
+A dynamic toy programming language implemented as an interpreter twice from scratch in Rust ([./src/monkey-rs](./src/monkey-rs)) and Go ([./src/monkey-go](./src/monkey-go)) based on the book [Writing an Interpreter in Go](https://interpreterbook.com/) by [Thorsten Ball](https://twitter.com/thorstenball)
+
+## Examples
+
+### Hello World
+```monkey
+puts("hello world");
+//> "hello world"
+```
+
+### Variables and Expressions
+```monkey
+let a = 1;
+puts(a + 1);
+//> "2"
+
+let b = 6;
+puts(a + b);
+//> "8"
+
+let b = " foo";
+puts(4 + a + b);
+//> "15 foo"
+```
+
+### Data types
+```monkey
+
+let string = "this is a string";
+puts(len(string));
+//> "16"
+
+let array = ["this", "is", "an", "array", 1, true];
+puts(len(arr));
+//> "6"
+
+let hashmap = { "this": "is", "a": "hashmap", true: false, 1: 101 };
+puts(hashmap["this"] + hashmap["a"])
+//> "ishashmap"
+```
+
+### Functions
+
+```monkey
+let factorial = fn(n) {
+    if (n <= 1) {
+		return 1;
+	}
+
+    return n * factorial(n - 1);
+}
+
+puts(factorial(8));
+//> "40320"
+
+let fibonacci = fn(n) {
+	if (n <= 1) {
+		return 1;
+	}
+
+	return fibonacci(n - 2) + fibonacci(n -1);
+}
+
+puts(fibonacci(25))
+//> "121393"
+```
+
+### Built-in Functions
+```monkey
+let arr = [0, 1, 2, 3, 5, 6, 7, 8, 9]
+
+puts(len(arr))
+//> "10"
+
+puts(first(arr))
+//> "0"
+
+puts(last(arr))
+//> "9"
+
+puts(rest(arr))
+//> "[1, 2, 3, 5, 6, 7, 8, 9]"
+
+puts(push(arr, 10))
+//> "[0, 1, 2, 3, 5, 6, 7, 8, 9, 10]"
+```
