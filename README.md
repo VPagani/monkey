@@ -5,13 +5,13 @@ A dynamic toy programming language implemented as an interpreter twice from scra
 ## Examples
 
 ### Hello World
-```monkey
+```js
 puts("hello world");
 //> "hello world"
 ```
 
 ### Variables and Expressions
-```monkey
+```js
 let a = 1;
 puts(a + 1);
 //> "2"
@@ -26,7 +26,7 @@ puts(4 + a + b);
 ```
 
 ### Data types
-```monkey
+```js
 
 let str = "this is a string";
 puts(len(str));
@@ -43,7 +43,7 @@ puts(hsh["this"] + hsh["a"])
 
 ### Functions
 
-```monkey
+```js
 let factorial = fn(n) {
   if (n <= 1) {
     return 1;
@@ -68,7 +68,7 @@ puts(fibonacci(25))
 ```
 
 ### Built-in Functions
-```monkey
+```js
 let arr = [0, 1, 2, 3, 5, 6, 7, 8, 9]
 
 puts(len(arr))
