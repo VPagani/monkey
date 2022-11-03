@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, collections::HashMap};
 
 use crate::{ast, ast::{Statement, Expression}, object::{Object, Environment, BuiltinFunction}, token::TokenType};
 
@@ -74,6 +74,33 @@ impl Evaluator {
 				}
 			}
 			
+			Expression::HashLiteral(ast::HashLiteralExpression { pairs,  .. }) => {
+				let mut hash_pairs = HashMap::new();
+
+				for (key_node, value_node) in pairs {
+					let key = self.eval_expression(key_node);
+					if key.is_error() {
+						return key;
+					}
+
+					let hash_key = match key.hash_key() {
+						Some(hash_key) => hash_key,
+						None => return Object::Error(
+							format!("unusable as hash key: {}", key.inspect_type())
+						)
+					};
+
+					let value = self.eval_expression(value_node);
+					if value.is_error() {
+						return value;
+					}
+
+					hash_pairs.insert(hash_key, (key, value));
+				}
+
+				return Object::Hash(hash_pairs);
+			}
+
 			Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
 				self.env.borrow().get(&name)
 				.or_else(|| Object::builtin_function(&name))
@@ -150,6 +177,18 @@ impl Evaluator {
 							.get(index as usize)
 							.map(|value| value.clone())
 							.unwrap_or(Object::Null),
+
+					(Object::Hash(hash), index) => {
+						let index = match index.hash_key() {
+							Some(index) => index,
+							None => return Object::Error(format!("unusable as hash key: {}", index.inspect_type())),
+						};
+
+						return hash
+							.get(&index)
+							.map(|pair| pair.1.clone())
+							.unwrap_or(Object::Null);
+					}
 
 					(left, _) => Object::Error(format!("index operator not supported: {}", left.inspect_type())),
 				}
@@ -508,6 +547,10 @@ mod tests {
 				",
 				"unknown operator: BOOLEAN + BOOLEAN",
 			),
+			(
+				"{\"name\": \"Monkey\"}[fn(x) { x }];",
+				"unusable as hash key: FUNCTION",
+			),
 		];
 
 		for (input, expected_value) in tests {
@@ -669,6 +712,86 @@ mod tests {
 				Object::Null,
 			),
 		);
+
+		for (input, expected_value) in tests {
+			assert_eq!(check_eval(input), expected_value);
+		}
+	}
+
+	#[test]
+	fn test_eval_hash() {
+		let input = "
+		let two = \"two\";
+		{
+			\"one\": 10 - 9,
+			two: 1 + 1,
+			\"thr\" + \"ee\": 6 / 2,
+			4: 4,
+			true: 5,
+			false: 6,
+		}
+		";
+
+		let evaluated = check_eval(input);
+
+		let expected = vec![
+			(Object::String("one".to_string()), 1),
+			(Object::String("two".to_string()), 2),
+			(Object::String("three".to_string()), 3),
+			(Object::Integer(4), 4),
+			(Object::Boolean(true), 5),
+			(Object::Boolean(false), 6),
+		];
+		
+		match evaluated {
+			Object::Hash(pairs) => {
+				if pairs.len() != expected.len() {
+					panic!("Hash has wrong num of pairs. got={}", pairs.len());
+				}
+
+				for (expected_key, expected_value) in expected.into_iter() {
+					let (key, value) = pairs.get(&expected_key.hash_key().unwrap()).unwrap();
+					assert_eq!(*key, expected_key);
+					assert_eq!(*value, Object::Integer(expected_value));
+				}
+			}
+
+			_ => panic!("value is not Hash. got={:?}", evaluated),
+		}
+	}
+
+	#[test]
+	fn test_eval_hash_index_expression() {
+		let tests = vec![
+			(
+				"{\"foo\": 5}[\"foo\"]",
+				Object::Integer(5),
+			),
+			(
+				"{\"foo\": 5}[\"bar\"]",
+				Object::Null,
+			),
+			(
+				"let key = \"foo\"; {\"foo\": 5}[key]",
+				Object::Integer(5),
+			),
+			(
+				"{}[\"foo\"]",
+				Object::Null,
+			),
+			(
+				"{5: 5}[5]",
+				Object::Integer(5),
+			),
+			(
+				"{true: 5}[true]",
+				Object::Integer(5),
+			),
+			(
+				"{false: 5}[false]",
+				Object::Integer(5),
+			),
+		];
 
 		for (input, expected_value) in tests {
 			assert_eq!(check_eval(input), expected_value);

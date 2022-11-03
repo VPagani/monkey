@@ -11,7 +11,7 @@ pub struct Program {
 
 // Statements
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum Statement {
 	Let(LetStatement),
 	Return(ReturnStatement),
@@ -19,26 +19,26 @@ pub enum Statement {
 	Block(BlockStatement),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct LetStatement {
 	pub token: Token,
 	pub name: IdentifierExpression,
 	pub value: Option<Expression>
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct ReturnStatement {
 	pub token: Token,
 	pub value: Option<Expression>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct ExpressionStatement {
 	pub token: Token,
 	pub expression: Expression,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct BlockStatement {
 	pub token: Token,
 	pub statements: Vec<Statement>,
@@ -47,13 +47,14 @@ pub struct BlockStatement {
 
 // Expressions
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum Expression {
 	Identifier(IdentifierExpression),
 	BooleanLiteral(BooleanLiteralExpression),
 	IntegerLiteral(IntegerLiteralExpression),
 	StringLiteral(StringLiteralExpression),
 	ArrayLiteral(ArrayLiteralExpression),
+	HashLiteral(HashLiteralExpression),
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
 	If(IfExpression),
@@ -62,50 +63,56 @@ pub enum Expression {
 	Index(IndexExpression),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct IdentifierExpression {
 	pub token: Token,
 	pub value: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct BooleanLiteralExpression {
 	pub token: Token,
 	pub value: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct IntegerLiteralExpression {
 	pub token: Token,
 	pub value: i64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct StringLiteralExpression {
 	pub token: Token,
 	pub value: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct ArrayLiteralExpression {
 	pub token: Token,
 	pub elements: Vec<Expression>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
+pub struct HashLiteralExpression {
+	pub token: Token,
+	pub pairs: Vec<(Expression, Expression)>,
+}
+
+#[derive(Clone, Debug)]
 pub struct PrefixExpression {
 	pub operator: Token,
 	pub right: Box<Expression>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct InfixExpression {
 	pub operator: Token,
 	pub left: Box<Expression>,
 	pub right: Box<Expression>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct IfExpression {
 	pub token: Token,
 	pub condition: Box<Expression>,
@@ -113,21 +120,21 @@ pub struct IfExpression {
 	pub alternative: Option<BlockStatement>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct FunctionExpression {
 	pub token: Token,
 	pub parameters: Vec<IdentifierExpression>,
 	pub body: BlockStatement,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct CallExpression {
 	pub token: Token,
 	pub identifier: Box<Expression>,
 	pub arguments: Vec<Expression>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct IndexExpression {
 	pub token: Token,
 	pub left: Box<Expression>,
@@ -241,6 +248,7 @@ impl Node for Expression {
 			IntegerLiteral(IntegerLiteralExpression { token, .. }) => token.literal.as_str(),
 			StringLiteral(StringLiteralExpression { token, .. }) => token.literal.as_str(),
 			ArrayLiteral(ArrayLiteralExpression { token, .. }) => token.literal.as_str(),
+			HashLiteral(HashLiteralExpression { token, .. }) => token.literal.as_str(),
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
 			If(IfExpression { token, .. }) => token.literal.as_str(),
@@ -266,6 +274,18 @@ impl Node for Expression {
 					.map(|el| el.to_string())
 					.collect::<Vec<String>>().join(", ").as_str();
 				out += "]";
+
+				return out;
+			}
+
+			HashLiteral(HashLiteralExpression { pairs, .. }) => {
+				let mut out = String::new();
+
+				out += "{";
+				out += pairs.iter()
+					.map(|(key, value)| format!("{}:{}", key.to_string(), value.to_string()))
+					.collect::<Vec<String>>().join(", ").as_str();
+				out += "}";
 
 				return out;
 			}

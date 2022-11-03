@@ -25,6 +25,7 @@ pub enum TokenType {
 
 	// Delimiters
 	Comma,
+	Colon,
 	Semicolon,
 
 	LParen,
@@ -70,6 +71,7 @@ impl TokenType {
 			TokenType::GreaterThanOrEqual => ">=",
 
 			TokenType::Comma => ",",
+			TokenType::Colon => ":",
 			TokenType::Semicolon => ";",
 
 			TokenType::LParen => "(",

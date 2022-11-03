@@ -103,7 +103,7 @@ impl<'a> Parser<'a> {
 		match self.current_token.ttype {
 			TokenType::Let => self.parse_let_statement().map(ast::Statement::Let),
 			TokenType::Return => self.parse_return_statement().map(ast::Statement::Return),
-			TokenType::LBrace => self.parse_block_statement().map(ast::Statement::Block),
+			// TokenType::LBrace => self.parse_block_statement().map(ast::Statement::Block),
 			_ => self.parse_expression_statement().map(ast::Statement::Expression),
 		}
 	}
@@ -295,6 +295,37 @@ impl<'a> Parser<'a> {
 						elements,
 					}
 				))
+			}
+
+			TokenType::LBrace => {
+				let mut pairs = vec![];
+
+				while !self.peek_token_is(TokenType::RBrace) {
+					self.next_token();
+					let key = self.parse_expression(Precedence::Lowest)?;
+
+					if !self.expect_peek(TokenType::Colon) {
+						return None;
+					}
+
+					self.next_token();
+					let value = self.parse_expression(Precedence::Lowest)?;
+
+					pairs.push((key, value));
+
+					if !self.peek_token_is(TokenType::RBrace) && !self.expect_peek(TokenType::Comma) {
+						return None;
+					}
+				}
+
+				if !self.expect_peek(TokenType::RBrace) {
+					return None;
+				}
+
+				Some(ast::Expression::HashLiteral(ast::HashLiteralExpression {
+					token: operator,
+					pairs,
+				}))
 			}
 
 			TokenType::If => {
@@ -1095,6 +1126,44 @@ mod tests {
 			}
 
 			_ => panic!("expression is not IndexExpression. got={:?}", expression),
+		}
+	}
+
+	#[test]
+	fn test_parsing_hash_literal_empty_expression() {
+		let input = "{}";
+
+		let expression = parse_expression(input);
+
+		match expression {
+			Expression::HashLiteral(ast::HashLiteralExpression { pairs, .. }) => {
+				if pairs.len() != 0 {
+					panic!("hash size is not empty. got={}", pairs.len());
+				}
+			}
+
+			_ => panic!("expression is not ast.HashListeral. got={:?}", expression),
+		}
+	}
+
+	#[test]
+	fn test_parsing_hash_literal_expression() {
+		let input = "{\"one\": 1, \"two\": 2, \"three\": 3 }";
+
+		let expression = parse_expression(input);
+
+		let expected: Vec<(&str, i64)> = vec![("one", 1), ("two", 2), ("three", 3)];
+
+		match expression {
+			Expression::HashLiteral(ast::HashLiteralExpression { pairs, .. }) => {
+				
+				for ((key_exp, value_exp), (expected_key, expected_value)) in pairs.into_iter().zip(expected.into_iter()) {
+					check_string_literal(key_exp, expected_key.to_string());
+					check_integer_literal(value_exp, expected_value);
+				}
+			}
+
+			_ => panic!("expression is not HashLiteralExpression. got={:?}", expression),
 		}
 	}
 	

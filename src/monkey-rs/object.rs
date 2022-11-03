@@ -1,4 +1,9 @@
-use std::{collections::HashMap, cell::RefCell, rc::Rc};
+use std::{
+	rc::Rc,
+	cell::RefCell,
+	hash::{Hasher},
+	collections::{HashMap, hash_map::DefaultHasher},
+};
 
 use crate::ast;
 
@@ -9,6 +14,7 @@ pub enum Object {
 	Integer(i64),
 	String(String),
 	Array(Vec<Object>),
+	Hash(HashMap<HashKey, (Object, Object)>),
 	ReturnValue(Box<Object>),
 	Function {
 		parameters: Vec<ast::IdentifierExpression>,
@@ -26,6 +32,7 @@ impl Object {
 			Object::Boolean(value) => format!("{}", value),
 			Object::Integer(value) => format!("{}", value),
 			Object::String(value) => value.clone(),
+
 			Object::Array(elements) => {
 				let mut out = String::new();
 
@@ -38,7 +45,21 @@ impl Object {
 				return out;
 
 			}
+
+			Object::Hash(pairs) => {
+				let mut out = String::new();
+
+				out += "{";
+				out += pairs.values()
+					.map(|(key, value)| format!("{}:{}", key.inspect(), value.inspect()))
+					.collect::<Vec<String>>().join(", ").as_str();
+				out += "}";
+
+				return out;
+			}
+
 			Object::ReturnValue(object) => object.inspect(),
+
 			Object::Function { parameters, body, .. } => {
 				let mut out = String::new();
 
@@ -65,6 +86,7 @@ impl Object {
 			Object::Integer(_) => "INTEGER",
 			Object::String(_) => "STRING",
 			Object::Array(_) => "ARRAY",
+			Object::Hash(_) => "HASH",
 			Object::ReturnValue(_) => "RETURN_VALUE",
 			Object::Function { .. } => "FUNCTION",
 			Object::Builtin(_) => "BUILTIN",
@@ -97,6 +119,34 @@ impl Object {
 	pub fn builtin_function(identifier: &String) -> Option<Object> {
 		BuiltinFunction::from_identifier(identifier)
 			.map(|builtin| Object::Builtin(builtin))
+	}
+
+	pub fn hash_key(&self) -> Option<HashKey> {
+		match self {
+			Object::Boolean(value) =>
+				Some(HashKey {
+					otype: self.inspect_type().to_string(),
+					value: if *value { 1 } else { 0 },
+				}),
+
+			Object::Integer(value) =>
+				Some(HashKey {
+					otype: self.inspect_type().to_string(),
+					value: *value as u64
+				}),
+
+			Object::String(value) => {
+				let mut hasher = DefaultHasher::new();
+				hasher.write(value.as_bytes());
+
+				return Some(HashKey {
+					otype: self.inspect_type().to_string(),
+					value: hasher.finish(),
+				});
+			}
+
+			_ => None,
+		}
 	}
 }
 
@@ -131,6 +181,12 @@ impl BuiltinFunction {
 	}
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct HashKey {
+	otype: String,
+	value: u64,
+}
+
 #[derive(Clone, Debug)]
 pub struct Environment {
 	store: HashMap<String, Object>,
@@ -162,5 +218,31 @@ impl Environment {
 	pub fn set(&mut self, name: String, value: Object) -> Object {
 		self.store.insert(name, value.clone());
 		return value;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Object;
+
+	#[test]
+	fn test_string_hash_key() {
+		let hello1 = Object::String("Hello World".to_string());
+		let hello2 = Object::String("Hello World".to_string());
+
+		let diff1 = Object::String("My name is johnny".to_string());
+		let diff2 = Object::String("My name is johnny".to_string());
+
+		if hello1.hash_key() != hello2.hash_key() {
+			panic!("strings with same content have different hash keys");
+		}
+
+		if diff1.hash_key() != diff2.hash_key() {
+			panic!("strings with same content have different hash keys");
+		}
+
+		if hello1.hash_key() == diff1.hash_key() {
+			panic!("strings with different content have same hash keys");
+		}
 	}
 }

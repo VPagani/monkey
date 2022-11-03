@@ -87,7 +87,9 @@ impl<'a> Lexer<'a> {
 
 			// Delimiters
 			',' => token = Token::char(Comma, self.current_char),
+			':' => token = Token::char(Colon, self.current_char),
 			';' => token = Token::char(Semicolon, self.current_char),
+
 			'(' => token = Token::char(LParen, self.current_char),
 			')' => token = Token::char(RParen, self.current_char),
 			'{' => token = Token::char(LBrace, self.current_char),
@@ -166,10 +168,8 @@ mod tests {
 	use crate::token::{TokenType, TokenType::*};
 	use super::Lexer;
 
-
-
 	#[test]
-	fn next_token() {
+	fn test_next_token() {
 		let input = "
 		let five = 5;
 		let ten = 10;
@@ -192,6 +192,7 @@ mod tests {
 		10 != 9;
 		\"foobar\"
 		\"foo bar\"
+		{\"foo\": \"bar\"}
 		";
 
 		let tests: Vec<(TokenType, &str)> = vec![
@@ -284,6 +285,12 @@ mod tests {
 
 			(String, "foobar"),
 			(String, "foo bar"),
+
+			(LBrace, "{"),
+			(String, "foo"),
+			(Colon, ":"),
+			(String, "bar"),
+			(RBrace, "}"),
 	
 			(EOF, ""),
 		];
