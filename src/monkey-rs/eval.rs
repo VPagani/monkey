@@ -1,19 +1,24 @@
 use std::{cell::RefCell, rc::Rc, collections::HashMap};
 
-use crate::{ast, ast::{Statement, Expression}, object::{Object, Environment, BuiltinFunction}, token::TokenType};
+use crate::{
+	ast,
+	ast::{Node, Statement, Expression, AstNode},
+	object::{Object, Environment, BuiltinFunction},
+	token::TokenType
+};
 
 pub struct Evaluator {
-	env: Rc<RefCell<Environment>>
+	env: RefCell<Rc<RefCell<Environment>>>
 }
 
 impl Evaluator {
 	pub fn new() -> Evaluator {
 		Evaluator {
-			env: Rc::new(RefCell::new(Environment::new())),
+			env: RefCell::new(Rc::new(RefCell::new(Environment::new()))),
 		}
 	}
 
-	pub fn eval(&mut self, program: ast::Program) -> Object {
+	pub fn eval(&self, program: ast::Program) -> Object {
 		let mut result: Object = Object::Null;
 	
 		for statement in program.statements {
@@ -29,7 +34,7 @@ impl Evaluator {
 		return result;
 	}
 
-	pub fn eval_statement(&mut self, statement: Statement) -> Object {
+	pub fn eval_statement(&self, statement: Statement) -> Object {
 		match statement {
 			Statement::Expression(ast::ExpressionStatement { expression, .. }) => self.eval_expression(expression),
 	
@@ -53,15 +58,16 @@ impl Evaluator {
 					return value;
 				}
 	
-				return self.env.borrow_mut().set(name.value, value);
+				return self.env.borrow().borrow_mut().set(name.value, value);
 			}
 	
 			Statement::Block(block_statement) => self.eval_block_statement(block_statement),
 		}
 	}
 
-	pub fn eval_expression(&mut self, expression: Expression) -> Object {
+	pub fn eval_expression(&self, expression: Expression) -> Object {
 		match expression {
+			Expression::NullLiteral => Object::Null,
 			Expression::BooleanLiteral(ast::BooleanLiteralExpression { value, .. }) => Object::Boolean(value),
 			Expression::IntegerLiteral(ast::IntegerLiteralExpression { value, .. }) => Object::Integer(value),
 			Expression::StringLiteral(ast::StringLiteralExpression { value, .. }) => Object::String(value),
@@ -101,8 +107,10 @@ impl Evaluator {
 				return Object::Hash(hash_pairs);
 			}
 
+			Expression::ErrorLiteral(message) => Object::Error(message),
+
 			Expression::Identifier(ast::IdentifierExpression { value: name, .. }) => {
-				self.env.borrow().get(&name)
+				self.env.borrow().borrow().get(&name)
 				.or_else(|| Object::builtin_function(&name))
 				.unwrap_or(
 					Object::Error(format!("identifier not found: {}", name))
@@ -145,10 +153,18 @@ impl Evaluator {
 			}
 
 			Expression::Function(ast::FunctionExpression { parameters, body, .. }) => {
-				Object::Function { parameters, body, env: Rc::clone(&self.env) }
+				Object::Function { parameters, body, env: Rc::clone(&self.env.borrow()) }
 			}
 
-			Expression::Call(ast::CallExpression { identifier, arguments, .. }) => {
+			Expression::Call(ast::CallExpression { identifier, mut arguments, .. }) => {
+				match identifier.as_ref() {
+					Expression::Identifier(ast::IdentifierExpression { value, .. }) if value == "quote" => {
+						return self.apply_quote_function(arguments.remove(0));
+					}
+
+					_ => {}
+				}
+
 				let function = self.eval_expression(*identifier);
 				if function.is_error() {
 					return function;
@@ -196,7 +212,7 @@ impl Evaluator {
 		}
 	}
 
-	fn eval_block_statement(&mut self, block_statement: ast::BlockStatement) -> Object {
+	fn eval_block_statement(&self, block_statement: ast::BlockStatement) -> Object {
 		let mut result: Object = Object::Null;
 	
 		for statement in block_statement.statements {
@@ -284,7 +300,7 @@ impl Evaluator {
 		}
 	}
 
-	fn eval_expressions(&mut self, expressions: Vec<Expression>) -> Result<Vec<Object>, Object> {
+	fn eval_expressions(&self, expressions: Vec<Expression>) -> Result<Vec<Object>, Object> {
 		let mut result = vec![];
 
 		for expression in expressions {
@@ -299,7 +315,7 @@ impl Evaluator {
 		return Ok(result);
 	}
 
-	fn apply_function(&mut self, value: Object, args: Vec<Object>) -> Object {
+	fn apply_function(&self, value: Object, args: Vec<Object>) -> Object {
 		match value {
 			Object::Function { env, parameters, body } => {
 				let mut call_env = Environment::new_enclosed(&env);
@@ -308,12 +324,15 @@ impl Evaluator {
 					call_env.set(param.value, arg);
 				}
 
-				let current_env = Rc::clone(&self.env);
-
-				self.env = Rc::new(RefCell::new(call_env));
+				let current_env = Rc::clone(&self.env.borrow());
+				{
+					*self.env.borrow_mut() = Rc::new(RefCell::new(call_env));
+				}
 				let result = self.eval_block_statement(body);
 
-				self.env = current_env;
+				{
+					*self.env.borrow_mut() = current_env;
+				}
 
 				result.unwrap_return_value()
 			}
@@ -326,7 +345,7 @@ impl Evaluator {
 		} 
 	}
 
-	fn apply_builtin_function(&mut self, builtin: BuiltinFunction, mut args: Vec<Object>) -> Object {
+	fn apply_builtin_function(&self, builtin: BuiltinFunction, mut args: Vec<Object>) -> Object {
 		match builtin {
 			BuiltinFunction::Len => {
 				match &args[..] {
@@ -413,6 +432,30 @@ impl Evaluator {
 			}
 		}
 	}
+
+	fn apply_quote_function(&self, ast: ast::Expression) -> Object {
+		let node = AstNode::Expression(ast).map(&|node| self.tranform_unquote(node));
+
+		match node {
+			AstNode::Expression(ast) =>
+				Object::Quote(ast),
+			
+			_ => Object::Null,
+		}
+	}
+
+	fn tranform_unquote(&self, node: AstNode) -> AstNode {
+		match node {
+			AstNode::Expression(
+				Expression::Call(ast::CallExpression { identifier, mut arguments, .. })
+			) if identifier.as_ref().literal() == "unquote" && arguments.len() == 1 =>
+				AstNode::Expression(
+					self.eval_expression(arguments.remove(0)).to_expression()
+				),
+
+			_ => node,
+		}
+	}
 }
 
 
@@ -433,7 +476,12 @@ pub fn is_error(object: Object) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{object::Object, lexer::Lexer, parser::Parser};
+    use crate::{
+		ast::Node,
+		lexer::Lexer,
+		parser::Parser,
+		object::Object,
+	};
 
     use super::Evaluator;
 
@@ -448,7 +496,7 @@ mod tests {
 			}
 		}
 
-		let mut evaluator = Evaluator::new();
+		let evaluator = Evaluator::new();
 
 		return evaluator.eval(program);
 	}
@@ -664,7 +712,7 @@ mod tests {
 				}
 
 				let body_str = body.to_string();
-				let expected_body = "(x + 2)";
+				let expected_body = "{ (x + 2) }";
 
 				if body_str != expected_body {
 					panic!("body is not \"{}\". got={}", expected_body, body_str);
@@ -868,6 +916,77 @@ mod tests {
 
 		for (input, expected_value) in tests {
 			assert_eq!(check_eval(input), expected_value);
+		}
+	}
+
+	#[test]
+	fn test_eval_quote() {
+		let tests = vec![
+			("quote(5)", "5"),
+			("quote(foobar)", "foobar"),
+			("quote(foobar + barfoo)", "(foobar + barfoo)"),
+		];
+
+		for (input, expected) in tests {
+			let evaluated = check_eval(input);
+			
+			match evaluated {
+				Object::Quote(expression) => {
+					assert_eq!(expression.to_string(), expected);
+				}
+
+				_ => panic!("expected Quote. got={:?}", evaluated),
+			}
+		}
+	}
+
+	#[test]
+	fn test_eval_quote_unquote() {
+		let tests = vec![
+			("quote(unquote(4))", "4"),
+			("quote(unquote(4 + 4))", "8"),
+			("quote(8 + unquote(4 + 4))", "(8 + 8)"),
+			("quote(unquote(4 + 4) + 8)", "(8 + 8)"),
+			(
+				"let foobar = 8;
+				quote(foobar)",
+				"foobar",
+			),
+			(
+				"let foobar = 8;
+				quote(unquote(foobar))",
+				"8",
+			),
+			(
+				"quote(unquote(true))",
+				"true",
+			),
+			(
+				"quote(unquote(true == false))",
+				"false",
+			),
+			(
+				"quote(unquote(quote(4 + 4)))",
+				"(4 + 4)",
+			),
+			(
+				"let quotedInfixExpression = quote(4 + 4);
+				quote(unquote(4 + 4) + unquote(quotedInfixExpression))",
+				"(8 + (4 + 4))",
+			),
+
+		];
+
+		for (input, expected) in tests {
+			let evaluated = check_eval(input);
+			
+			match evaluated {
+				Object::Quote(expression) => {
+					assert_eq!(expression.to_string(), expected);
+				}
+
+				_ => panic!("expected Quote. got={:?}", evaluated),
+			}
 		}
 	}
 }

@@ -5,7 +5,7 @@ use std::{
 	collections::{HashMap, hash_map::DefaultHasher},
 };
 
-use crate::ast;
+use crate::{ast, ast::Node, token::{Token, TokenType}};
 
 #[derive(Clone, Debug)]
 pub enum Object {
@@ -23,6 +23,7 @@ pub enum Object {
 	},
 	Builtin(BuiltinFunction),
 	Error(String),
+	Quote(ast::Expression),
 }
 
 impl Object {
@@ -75,6 +76,7 @@ impl Object {
 			},
 			Object::Builtin(_) => "builtin function".to_string(),
 			Object::Error(message) => format!("ERROR: {}", message),
+			Object::Quote(expression) => format!("QUOTE({})", expression.to_string()),
 		}
 	}
 
@@ -91,6 +93,7 @@ impl Object {
 			Object::Function { .. } => "FUNCTION",
 			Object::Builtin(_) => "BUILTIN",
 			Object::Error(_) => "ERROR",
+			Object::Quote(_) => "QUOTE",
 		}
 	}
 
@@ -146,6 +149,34 @@ impl Object {
 			}
 
 			_ => None,
+		}
+	}
+
+	pub fn to_expression(self) -> ast::Expression {
+		match self {
+			Object::Boolean(value) => ast::Expression::BooleanLiteral(
+				ast::BooleanLiteralExpression {
+					token:
+						if value {
+							Token::str(TokenType::True, "true")
+						} else {
+							Token::str(TokenType::False, "false")
+						},
+					value,
+				}
+			),
+
+			Object::Integer(value) => ast::Expression::IntegerLiteral(
+				ast::IntegerLiteralExpression {
+					token: Token::string(TokenType::Int, format!("{}", value)),
+					value,
+				}),
+
+			Object::Error(message) => ast::Expression::ErrorLiteral(message),
+
+			Object::Quote(expression) => expression,
+
+			_ =>  ast::Expression::NullLiteral,
 		}
 	}
 }
