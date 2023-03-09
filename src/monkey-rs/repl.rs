@@ -20,12 +20,14 @@ const REPL_TYPE: ReplType = ReplType::REPL;
 
 pub struct Repl {
 	evaluator: Evaluator,
+	macro_evaluator: Evaluator,
 }
 
 impl Repl {
 	pub fn new() -> Self {
 		Repl {
 			evaluator: Evaluator::new(),
+			macro_evaluator: Evaluator::new(),
 		}
 	}
 
@@ -74,6 +76,8 @@ impl Repl {
 			return Ok(());
 		}
 
+		let program = self.macro_evaluator.handle_macros(program);
+
 		writeln!(stdout, "{}", program.to_string())?;
 
 		return Ok(());
@@ -87,6 +91,8 @@ impl Repl {
 			self.print_parser_errors(stdout, parser.errors)?;
 			return Ok(());
 		}
+
+		let program = self.macro_evaluator.handle_macros(program);
 
 		let evaluated = self.evaluator.eval(program);
 		writeln!(stdout, "{}", evaluated.inspect())?;

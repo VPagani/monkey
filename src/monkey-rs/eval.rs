@@ -534,7 +534,7 @@ impl Evaluator {
 		}
 	}
 
-	fn handle_macros(&self, program: ast::Program) -> ast::Program {
+	pub fn handle_macros(&self, program: ast::Program) -> ast::Program {
 		return self.expand_macros(self.define_macros(program));
 	}
 }
