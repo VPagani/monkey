@@ -16,14 +16,18 @@ pub enum Object {
 	Array(Vec<Object>),
 	Hash(HashMap<HashKey, (Object, Object)>),
 	ReturnValue(Box<Object>),
-	Function {
-		parameters: Vec<ast::IdentifierExpression>,
-		body: ast::BlockStatement,
-		env: Rc<RefCell<Environment>>
-	},
+	Macro(ObjectFunction),
+	Function(ObjectFunction),
 	Builtin(BuiltinFunction),
 	Error(String),
 	Quote(ast::Expression),
+}
+
+#[derive(Clone, Debug)]
+pub struct ObjectFunction {
+	pub parameters: Vec<ast::IdentifierExpression>,
+	pub body: ast::BlockStatement,
+	pub env: Rc<RefCell<Environment>>
 }
 
 impl Object {
@@ -61,19 +65,34 @@ impl Object {
 
 			Object::ReturnValue(object) => object.inspect(),
 
-			Object::Function { parameters, body, .. } => {
+			Object::Macro(ObjectFunction { parameters, body, .. }) => {
 				let mut out = String::new();
 
-				out += "fn";
-				out += "(";
+				out += "macro(";
 				out += parameters.iter()
 					.map(|param| param.value.clone())
 					.collect::<Vec<String>>().join(", ").as_str();
-				out += "(";
+				out += ") {\n";
 				out += body.to_string().as_str();
+				out += "\n}";
 
 				return out;
-			},
+			}
+
+			Object::Function(ObjectFunction { parameters, body, .. }) => {
+				let mut out = String::new();
+
+				out += "fn(";
+				out += parameters.iter()
+					.map(|param| param.value.clone())
+					.collect::<Vec<String>>().join(", ").as_str();
+				out += ") {\n";
+				out += body.to_string().as_str();
+				out += "\n}";
+
+				return out;
+			}
+
 			Object::Builtin(_) => "builtin function".to_string(),
 			Object::Error(message) => format!("ERROR: {}", message),
 			Object::Quote(expression) => format!("QUOTE({})", expression.to_string()),
@@ -90,6 +109,7 @@ impl Object {
 			Object::Array(_) => "ARRAY",
 			Object::Hash(_) => "HASH",
 			Object::ReturnValue(_) => "RETURN_VALUE",
+			Object::Macro { .. } => "MACRO",
 			Object::Function { .. } => "FUNCTION",
 			Object::Builtin(_) => "BUILTIN",
 			Object::Error(_) => "ERROR",
@@ -259,6 +279,11 @@ impl Environment {
 	pub fn set(&mut self, name: String, value: Object) -> Object {
 		self.store.insert(name, value.clone());
 		return value;
+	}
+
+	pub fn has(&self, name: &String) -> bool {
+		self.store.contains_key(name) ||
+		self.outer.as_ref().map_or(false, |env| env.borrow().has(name))
 	}
 }
 

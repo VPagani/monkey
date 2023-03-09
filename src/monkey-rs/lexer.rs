@@ -208,6 +208,7 @@ mod tests {
 		\"foobar\"
 		\"foo bar\"
 		{\"foo\": \"bar\"}
+		macro(x, y) { x + y; };
 		";
 
 		let tests: Vec<(TokenType, &str)> = vec![
@@ -313,6 +314,20 @@ mod tests {
 			(Colon, ":"),
 			(String, "bar"),
 			(RBrace, "}"),
+
+			(Macro, "macro"),
+			(LParen, "("),
+			(Ident, "x"),
+			(Comma, ","),
+			(Ident, "y"),
+			(RParen, ")"),
+			(LBrace, "{"),
+			(Ident, "x"),
+			(Plus, "+"),
+			(Ident, "y"),
+			(Semicolon, ";"),
+			(RBrace, "}"),
+			(Semicolon, ";"),
 	
 			(EOF, ""),
 		];

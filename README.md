@@ -88,9 +88,14 @@ puts(push(arr, 10))
 ```
 
 ### Macro Expressions
-`quote(expression)`: Returns expression as a raw AST object without evaluating (except for expressions inside `unquote`)
 
-`unquote(expression)`: Evaluate expression inside quote expression
+#### `quote(expression)`:
+Returns expression as a raw AST object without evaluating (except for expressions inside `unquote`)
+
+#### `unquote(expression)`: 
+*Can only be used inside `quote` argument*
+
+Evaluate expression or quoted AST object passed as argument
 
 ```js
 puts(quote(foobar + barfoo));
@@ -102,4 +107,18 @@ puts(quote(8 + unquote(4 + 4)));
 let quotedInfixExpression = quote(4 + 4);
 puts(quote(unquote(4 + 4) + unquote(quotedInfixExpression)));
 //> QUOTE((8 + (4 + 4)))
+```
+
+### Macro Functions
+```js
+let unless = macro(condition, consequence, alternative) {
+  quote(if (!unquote(condition)) {
+    unquote(consequence);
+  } else {
+    unquote(alternative);
+  });
+};
+
+unless(10 > 5, puts("not greater"), puts("greater"));
+//> greater
 ```

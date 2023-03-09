@@ -369,24 +369,12 @@ impl<'a> Parser<'a> {
 				));
 			}
 
+			TokenType::Macro => {
+				self.parse_function_expression(operator).map(ast::Expression::Macro)
+			}
+
 			TokenType::Function => {
-				if !self.expect_peek(TokenType::LParen) {
-					return None;
-				}
-
-				let parameters = self.parse_function_parameters()?;
-
-				if !self.expect_peek(TokenType::LBrace) {
-					return None;
-				}
-
-				let body = self.parse_block_statement()?;
-
-				return Some(ast::Expression::Function(ast::FunctionExpression {
-					token: operator,
-					parameters,
-					body,
-				}))
+				self.parse_function_expression(operator).map(ast::Expression::Function)
 			}
 
 			_ => None,
@@ -484,6 +472,26 @@ impl<'a> Parser<'a> {
 		}
 
 		return Some(args);
+	}
+
+	fn parse_function_expression(&mut self, token: Token) -> Option<ast::FunctionExpression> {
+		if !self.expect_peek(TokenType::LParen) {
+			return None;
+		}
+
+		let parameters = self.parse_function_parameters()?;
+
+		if !self.expect_peek(TokenType::LBrace) {
+			return None;
+		}
+
+		let body = self.parse_block_statement()?;
+
+		return Some(ast::FunctionExpression {
+			token,
+			parameters,
+			body,
+		});
 	}
 
 	fn parse_function_parameters(&mut self) -> Option<Vec<ast::IdentifierExpression>> {
@@ -1117,6 +1125,35 @@ mod tests {
 	}
 
 	#[test]
+	fn test_parsing_macro_expression() {
+		let input = "macro(x, y) { x + y; }";
+
+		let expression = parse_expression(input);
+
+		let Expression::Macro(ast::FunctionExpression { parameters, mut body, .. }) = expression else {
+			panic!("expression is not Macro. got={:?}", expression);
+		};
+
+		if parameters.len() != 2 {
+			panic!("macro literal parameters wrong. want 2, got={}\n", parameters.len());
+		}
+
+		assert_eq!(parameters[0].value, "x");
+		assert_eq!(parameters[1].value, "y");
+
+		if body.statements.len() != 1 {
+			panic!("macro body statements count is not 2, got={}", body.statements.len());
+		}
+
+		let statement = body.statements.remove(0);
+		let Statement::Expression(ast::ExpressionStatement { expression, .. }) = statement else {
+			panic!("macro body statement is not Expression. got={:?}", statement);
+		};
+
+		check_infix_expression(expression, LiteralValue::Identifier("x"), "+", LiteralValue::Identifier("y"));
+	}
+
+	#[test]
 	fn test_parsing_index_expression() {
 		let input = "myArray[1 + 1]";
 	
@@ -1169,5 +1206,4 @@ mod tests {
 			_ => panic!("expression is not HashLiteralExpression. got={:?}", expression),
 		}
 	}
-	
 }

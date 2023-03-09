@@ -61,6 +61,7 @@ pub enum Expression {
 	Prefix(PrefixExpression),
 	Infix(InfixExpression),
 	If(IfExpression),
+	Macro(FunctionExpression),
 	Function(FunctionExpression),
 	Call(CallExpression),
 	Index(IndexExpression),
@@ -259,6 +260,7 @@ impl Node for Expression {
 			Prefix(PrefixExpression { operator, .. }) => operator.literal.as_str(),
 			Infix(InfixExpression { operator, .. }) => operator.literal.as_str(),
 			If(IfExpression { token, .. }) => token.literal.as_str(),
+			Macro(FunctionExpression { token, .. }) |
 			Function(FunctionExpression { token, .. }) => token.literal.as_str(),
 			Call(CallExpression { token, .. }) => token.literal.as_str(),
 			Index(IndexExpression { token, .. }) => token.literal.as_str(),
@@ -322,6 +324,7 @@ impl Node for Expression {
 				return out;
 			}
 
+			Macro(FunctionExpression { parameters, body, .. }) |
 			Function(FunctionExpression { parameters, body, .. }) => {
 				let mut out = String::new();
 

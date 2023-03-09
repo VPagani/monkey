@@ -3,12 +3,12 @@ use std::{cell::RefCell, rc::Rc, collections::HashMap};
 use crate::{
 	ast,
 	ast::{Node, Statement, Expression, AstNode},
-	object::{Object, Environment, BuiltinFunction},
+	object::{Object, Environment, BuiltinFunction, ObjectFunction},
 	token::TokenType
 };
 
 pub struct Evaluator {
-	env: RefCell<Rc<RefCell<Environment>>>
+	pub env: RefCell<Rc<RefCell<Environment>>>
 }
 
 impl Evaluator {
@@ -152,8 +152,10 @@ impl Evaluator {
 				}
 			}
 
+			Expression::Macro(_) => Object::Null,
+
 			Expression::Function(ast::FunctionExpression { parameters, body, .. }) => {
-				Object::Function { parameters, body, env: Rc::clone(&self.env.borrow()) }
+				Object::Function(ObjectFunction { parameters, body, env: Rc::clone(&self.env.borrow()) })
 			}
 
 			Expression::Call(ast::CallExpression { identifier, mut arguments, .. }) => {
@@ -317,7 +319,7 @@ impl Evaluator {
 
 	fn apply_function(&self, value: Object, args: Vec<Object>) -> Object {
 		match value {
-			Object::Function { env, parameters, body } => {
+			Object::Function(ObjectFunction { env, parameters, body }) => {
 				let mut call_env = Environment::new_enclosed(&env);
 
 				for (param, arg) in parameters.into_iter().zip(args.into_iter()) {
@@ -434,7 +436,18 @@ impl Evaluator {
 	}
 
 	fn apply_quote_function(&self, ast: ast::Expression) -> Object {
-		let node = AstNode::Expression(ast).map(&|node| self.tranform_unquote(node));
+		let node = AstNode::Expression(ast).map(&|node|
+			match node {
+				AstNode::Expression(
+					Expression::Call(ast::CallExpression { identifier, mut arguments, .. })
+				) if identifier.as_ref().literal() == "unquote" && arguments.len() == 1 =>
+					AstNode::Expression(
+						self.eval_expression(arguments.remove(0)).to_expression()
+					),
+	
+				_ => node,
+			}
+		);
 
 		match node {
 			AstNode::Expression(ast) =>
@@ -444,17 +457,85 @@ impl Evaluator {
 		}
 	}
 
-	fn tranform_unquote(&self, node: AstNode) -> AstNode {
-		match node {
-			AstNode::Expression(
-				Expression::Call(ast::CallExpression { identifier, mut arguments, .. })
-			) if identifier.as_ref().literal() == "unquote" && arguments.len() == 1 =>
-				AstNode::Expression(
-					self.eval_expression(arguments.remove(0)).to_expression()
-				),
+	fn define_macros(&self, program: ast::Program) -> ast::Program {
+		let mut statements: Vec<Statement> = vec![];
 
-			_ => node,
+		for statement in program.statements {
+			let Statement::Let(
+				ast::LetStatement { name, value: Some(Expression::Macro(macro_expression)), .. }
+			) = statement else {
+				// if statement is not a macro definition, keep it
+				statements.push(statement);
+				continue;
+			};
+
+			let macro_object = Object::Macro(ObjectFunction {
+				env: Rc::clone(&self.env.borrow()),
+				parameters: macro_expression.parameters,
+				body: macro_expression.body,
+			});
+			self.env.borrow().borrow_mut().set(name.value, macro_object);
 		}
+
+		return ast::Program {
+			statements,
+		};
+	}
+
+	fn get_macro(&self, call_expression: &ast::CallExpression) -> Option<ObjectFunction> {
+		let Expression::Identifier(ast::IdentifierExpression { value: identifier, .. }) = call_expression.identifier.as_ref() else {
+			return None;
+		};
+
+		let Object::Macro(macro_function) = self.env.borrow().borrow().get(identifier)? else {
+			return None;
+		};
+
+		return Some(macro_function);
+	}
+
+	fn expand_macros(&self, program: ast::Program) -> ast::Program {
+		let node = AstNode::Program(program).map(&|node|
+			match node {
+				AstNode::Expression(Expression::Call(ref call_expression)) => {
+					let Some(macro_fn) = self.get_macro(call_expression) else {
+						return node;
+					};
+
+					let args = call_expression.arguments.iter().map(|arg| Object::Quote(arg.clone())).collect::<Vec<_>>();
+					let mut env = Environment::new_enclosed(&macro_fn.env);
+
+					for (param, arg) in macro_fn.parameters.iter().zip(args.into_iter()) {
+						env.set(param.value.clone(), arg);
+					}
+
+					let current_env = Rc::clone(&self.env.borrow());
+					{
+						*self.env.borrow_mut() = Rc::new(RefCell::new(env));
+					}
+
+					let Object::Quote(quote) = self.eval_block_statement(macro_fn.body) else {
+						panic!("we only support returning AST-node from macros");
+					};
+
+					{
+						*self.env.borrow_mut() = current_env;
+					}
+
+					return AstNode::Expression(quote);
+				}
+				_ => node
+			}
+		);
+
+		match node {
+			AstNode::Program(program) => program,
+			_ => unreachable!(),
+		}
+	}
+
+	fn handle_macros(&self, program: ast::Program) -> ast::Program {
+		return self.expand_macros(self.define_macros(program));
 	}
 }
 
@@ -476,16 +557,18 @@ pub fn is_error(object: Object) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
+	use crate::{
 		ast::Node,
+		ast::Program,
 		lexer::Lexer,
 		parser::Parser,
 		object::Object,
+		object::ObjectFunction,
 	};
 
-    use super::Evaluator;
+	use super::Evaluator;
 
-	fn check_eval(input: &str) -> Object {
+	fn check_program(input: &str) -> Program {
 		let mut lexer = Lexer::new(input);
 		let mut parser = Parser::new(&mut lexer);
 
@@ -496,6 +579,11 @@ mod tests {
 			}
 		}
 
+		return program;
+	}
+
+	fn check_program_eval(input: &str) -> Object {
+		let program = check_program(input);
 		let evaluator = Evaluator::new();
 
 		return evaluator.eval(program);
@@ -522,7 +610,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, Object::Boolean(expected_value));
 		}
 	}
@@ -548,7 +636,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, Object::Integer(expected_value));
 		}
 	}
@@ -557,7 +645,7 @@ mod tests {
 	fn test_eval_string_expression() {
 		let input = "\"hello world\"";
 
-		let evaluated = check_eval(input);
+		let evaluated = check_program_eval(input);
 		assert_eq!(evaluated, Object::String("hello world".to_string()));
 	}
 
@@ -565,7 +653,7 @@ mod tests {
 	fn test_string_concatenation() {
 		let input = "\"Hello\" + \" \" + \"World!\"";
 
-		let evaluated = check_eval(input);
+		let evaluated = check_program_eval(input);
 		assert_eq!(evaluated, Object::String("Hello World!".to_string()));
 	}
 
@@ -581,7 +669,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, Object::Boolean(expected_value));
 		}
 	}
@@ -599,7 +687,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, expected_value);
 		}
 	}
@@ -625,7 +713,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, Object::Integer(expected_value));
 		}
 	}
@@ -675,7 +763,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, Object::Error(expected_value.to_string()));
 		}
 	}
@@ -690,7 +778,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			assert_eq!(evaluated, Object::Integer(expected_value));
 		}
 	}
@@ -699,10 +787,10 @@ mod tests {
 	fn test_eval_function() {
 		let input = "fn(x) { x + 2; };";
 
-		let evaluated = check_eval(input);
+		let evaluated = check_program_eval(input);
 
 		match evaluated {
-			Object::Function { parameters, body, .. } => {
+			Object::Function(ObjectFunction { parameters, body, .. }) => {
 				if parameters.len() != 1 {
 					panic!("function has wrong parameters. Paramaters={}", parameters.len());
 				}
@@ -735,7 +823,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			assert_eq!(check_eval(input), Object::Integer(expected_value));
+			assert_eq!(check_program_eval(input), Object::Integer(expected_value));
 		}
 	}
 
@@ -750,7 +838,7 @@ mod tests {
 			addTwo(2);
 		";
 
-		assert_eq!(check_eval(input), Object::Integer(4));
+		assert_eq!(check_program_eval(input), Object::Integer(4));
 	}
 
 	#[test]
@@ -764,7 +852,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			assert_eq!(check_eval(input), expected_value)
+			assert_eq!(check_program_eval(input), expected_value)
 		}
 	}
 
@@ -772,7 +860,7 @@ mod tests {
 	fn test_eval_array_literals() {
 		let input = "[1, 2 * 4, 3 + 8]";
 
-		let evaluated = check_eval(input);
+		let evaluated = check_program_eval(input);
 
 		match evaluated {
 			Object::Array(elements) => {
@@ -835,7 +923,7 @@ mod tests {
 		);
 
 		for (input, expected_value) in tests {
-			assert_eq!(check_eval(input), expected_value);
+			assert_eq!(check_program_eval(input), expected_value);
 		}
 	}
 
@@ -853,7 +941,7 @@ mod tests {
 		}
 		";
 
-		let evaluated = check_eval(input);
+		let evaluated = check_program_eval(input);
 
 		let expected = vec![
 			(Object::String("one".to_string()), 1),
@@ -915,7 +1003,7 @@ mod tests {
 		];
 
 		for (input, expected_value) in tests {
-			assert_eq!(check_eval(input), expected_value);
+			assert_eq!(check_program_eval(input), expected_value);
 		}
 	}
 
@@ -928,7 +1016,7 @@ mod tests {
 		];
 
 		for (input, expected) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			
 			match evaluated {
 				Object::Quote(expression) => {
@@ -978,7 +1066,7 @@ mod tests {
 		];
 
 		for (input, expected) in tests {
-			let evaluated = check_eval(input);
+			let evaluated = check_program_eval(input);
 			
 			match evaluated {
 				Object::Quote(expression) => {
@@ -987,6 +1075,94 @@ mod tests {
 
 				_ => panic!("expected Quote. got={:?}", evaluated),
 			}
+		}
+	}
+
+	#[test]
+	fn test_eval_macro_definition() {
+		let input = "
+		let number = 1;
+		let function = fn(x, y) { x + y };
+		let mymacro = macro(x, y) { x + y; };
+		";
+
+		let mut lexer = Lexer::new(input);
+		let mut parser = Parser::new(&mut lexer);
+		let program = parser.parse_program();
+
+		let evaluator = Evaluator::new();
+		let program = evaluator.define_macros(program);
+
+		if program.statements.len() != 2 {
+			panic!("wrong number of statements. got={}", program.statements.len());
+		}
+
+		if evaluator.env.borrow().borrow().has(&"number".to_string()) {
+			panic!("number should not be defined");
+		}
+
+		if evaluator.env.borrow().borrow().has(&"function".to_string()) {
+			panic!("function should not be defined");
+		}
+
+		let Some(object) = evaluator.env.borrow().borrow().get(&"mymacro".to_string()) else {
+			panic!("macro should be defined");
+		};
+
+		let Object::Macro(ObjectFunction { parameters, body, .. }) = object else {
+			panic!("object is not Macro. got={:?}", object);
+		};
+
+		assert_eq!(2, parameters.len(), "wrong number of parameters");
+
+		assert_eq!("x", parameters[0].value);
+		assert_eq!("y", parameters[1].value);
+
+		assert_eq!("{ (x + y) }", body.to_string());
+	}
+
+	#[test]
+	fn test_expand_macros() {
+		let tests = vec![
+			(
+				"
+				let infixExpression = macro() { quote(1 + 2); };
+
+				infixExpression();
+				",
+				"(1 + 2)"
+			),
+			(
+				"
+				let reverse = macro(a, b) { quote(unquote(b) - unquote(a)); };
+				reverse(2 + 2, 10 - 5);
+				",
+				"(10 - 5) - (2 + 2)"
+			),
+			(
+				"
+				let unless = macro(condition, consequence, alternative) {
+					quote(if (!unquote(condition)) {
+						unquote(consequence);
+					} else {
+						unquote(alternative);
+					});
+				};
+
+				unless(10 > 5, puts(\"not greater\"), puts(\"greater\"));
+				",
+				"if (!(10 > 5)) { puts(\"not greater\") } else { puts(\"greater\") }"
+			)
+		];
+
+		for (input, expected) in tests {
+			let input_program = check_program(input);
+			let expected_program = check_program(expected);
+
+			let evaluator = Evaluator::new();
+			let input_program = evaluator.handle_macros(input_program);
+
+			assert_eq!(expected_program.to_string(), input_program.to_string());
 		}
 	}
 }

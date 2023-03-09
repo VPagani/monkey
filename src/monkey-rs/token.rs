@@ -36,6 +36,7 @@ pub enum TokenType {
 	RBracket,
 
 	// Keywords
+	Macro,
 	Function,
 	Let,
 	True,
@@ -81,6 +82,7 @@ impl TokenType {
 			TokenType::LBracket => "[",
 			TokenType::RBracket => "]",
 
+			TokenType::Macro => "MACRO",
 			TokenType::Function => "FUNCTION",
 			TokenType::Let => "LET",
 			TokenType::True => "TRUE",
@@ -131,6 +133,7 @@ pub fn lookup_identifier(text: &str) -> TokenType {
 		"if" => TokenType::If,
 		"else" => TokenType::Else,
 		"return" => TokenType::Return,
+		"macro" => TokenType::Macro,
 
 		_ => TokenType::Ident,
 	}
